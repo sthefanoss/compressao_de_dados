@@ -3,31 +3,24 @@ close all; clear; clc;
 img255 = imread('./corpusNP1/Binarizado10.jpg');
 img = img255 == 255;
 
-% 2. segmentar em blocos 2x2 | 4x4
-img2x2Blocks = splitMatrixInBlocks(img, [2 2]);
-img2x2Sweep = uint8(length(img2x2Blocks));
-for i=1:length(img2x2Blocks)
-    img2x2Sweep(i) = sweepMatrix(img2x2Blocks(:,:,i));
+% 2. segmentar em blocos
+% o produto das dimensoes do  bloco nao pode passar o limite do tipo na
+% linha 11
+blockSize = [2 2];
+blocks = splitMatrixInBlocks(img, blockSize);
+symbols = uint64(zeros(1,length(blocks)));
+for i=1:length(symbols)
+    symbols(i) = sweepMatrix(blocks(:,:,i));
 end
 
-img4x4Blocks = splitMatrixInBlocks(img, [4 4]);
-img4x4Sweep = uint16(length(img4x4Blocks));
-for i=1:length(img4x4Blocks)
-    img4x4Sweep(i) = sweepMatrix(img4x4Blocks(:,:,i));
-end
+% 3. estatisticas de simbolos unicos
+[symbolsValues, symbolsProbabilities] = getProbabilities(symbols);
+[symbolsValues, symbolsProbabilities] = sortTuplesBySecond(symbolsValues, symbolsProbabilities);
+symbolsEntropy = sum(-symbolsProbabilities.*log2(symbolsProbabilities));
 
-% 3. estatisticas, entropia, rle etc 
-[img2x2Symbols,img2x2Probabilities] = getProbabilities(img2x2Sweep);
-[img2x2Symbols,img2x2Probabilities] = sortTuplesBySecond(img2x2Symbols,img2x2Probabilities);
-H2x2Symbols = sum(-img2x2Probabilities.*log2(img2x2Probabilities));
-[rle2x2Symbols,rle2x2Counts] = rleEncode(img2x2Sweep);
-[xx,yy] = getProbabilities(formatRleTuples(rle2x2Symbols, rle2x2Counts));
-
-[img4x4Symbols,img4x4Probabilities] = getProbabilities(img4x4Sweep);
-[img4x4Symbols,img4x4Probabilities] = sortTuplesBySecond(img4x4Symbols,img4x4Probabilities);
-H4x4Symbols = sum(-img4x4Probabilities.*log2(img4x4Probabilities));
-[rle4x4Symbols,rle4x4Counts] = rleEncode(img4x4Sweep);
-
+% 3. estatisticas de simbolos de rle
+% [rle2x2Symbols,rle2x2Counts] = rleEncode(s);
+% [xx,yy] = getProbabilities(formatRleTuples(rle2x2Symbols, rle2x2Counts));
 
 
 % Extras. funcoes auxiliares

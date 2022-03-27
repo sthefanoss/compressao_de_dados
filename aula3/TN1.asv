@@ -3,9 +3,10 @@ close all; clear; clc;
 img255 = imread('./corpusNP1/Binarizado10.jpg');
 img = img255 == 255;
 
-% 2. segmentar em blocos 2x2 | 4x4
-img2x2Blocks = splitMatrixInBlocks(img, [2 2]);
-img2x2Sweep = uint8(length(img2x2Blocks));
+% 2. segmentar em blocos
+blockSize = [2 2];
+blocks = splitMatrixInBlocks(img, blockSize);
+sweep = uint8(length(img2x2Blocks));
 for i=1:length(img2x2Blocks)
     img2x2Sweep(i) = sweepMatrix(img2x2Blocks(:,:,i));
 end
@@ -21,7 +22,7 @@ end
 [img2x2Symbols,img2x2Probabilities] = sortTuplesBySecond(img2x2Symbols,img2x2Probabilities);
 H2x2Symbols = sum(-img2x2Probabilities.*log2(img2x2Probabilities));
 [rle2x2Symbols,rle2x2Counts] = rleEncode(img2x2Sweep);
-[xx,yy] = getProbabilities(sprintf('(%d,%d)',rle2x2Symbols, rle2x2Counts));
+[xx,yy] = getProbabilities(formatRleTuples(rle2x2Symbols, rle2x2Counts));
 
 [img4x4Symbols,img4x4Probabilities] = getProbabilities(img4x4Sweep);
 [img4x4Symbols,img4x4Probabilities] = sortTuplesBySecond(img4x4Symbols,img4x4Probabilities);
@@ -132,9 +133,9 @@ function [values,counts] = rleEncode(X)
 end
 
 function tuples = formatRleTuples(values,counts)
-for i=1:length(values)
-    tuples = '(%d,%d)',rle2x2Symbols, rle2x2Counts)
-end
+    for i=1:length(values)
+        tuples =  sprintf('(%d,%d)',values(i), counts(i));
+    end
 end
 
 function X = rleDecode(values,counts)
