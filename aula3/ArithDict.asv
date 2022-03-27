@@ -1,0 +1,67 @@
+classdef ArithDict
+    %ARITH_ENCODER Summary of this class goes here
+    %   Detailed explanation goes here
+    
+    properties
+        values;
+        probabilities;
+        probabilities_sum;
+    end
+    
+    methods
+        function obj = ArithDict(values, probabilities)
+            obj.values = values;
+            obj.probabilities = probabilities;
+            obj.probabilities_sum = probabilities;
+            for i=2:length(probabilities)
+                obj.probabilities_sum(i) = obj.probabilities_sum(i) + obj.probabilities_sum(i-1);
+            end
+        end
+        
+        function inf = encode(obj, data)
+            inf = 0;
+            l = 1;
+            for i=1:length(data)
+                [inf_data,sup_data] = obj.getRange(data(i))
+                sup = inf + l*sup_data;
+                inf = inf + l*inf_data;
+                l = sup - inf;
+            end
+        end
+
+        function data = decode(obj,scalar)
+            data = [];
+            inf = 1;
+            sup = 0;
+            i = 1;
+            while(scalar ~= 0)
+                [value,inf,sup] = obj.getValue(scalar)
+                scalar = vpa((scalar-inf)/(sup-inf),100);
+                data(i) = value;
+                i=i+1;
+            end
+        end
+
+        function [inf,sup] = getRange(obj, singleValue)        
+            index = find(obj.values == singleValue, 1);
+            sup = obj.probabilities_sum(index);
+            if(index == 1)
+                inf = 0;
+            else
+                inf = obj.probabilities_sum(index-1);
+            end
+        end
+
+        function [value, inf, sup] = getValue(obj, singleValue)
+            index = find(singleValue < obj.probabilities_sum, 1);
+            value = obj.values(index);
+            sup = obj.probabilities_sum(index);
+            if(index == 1)
+                inf = 0;
+            else
+                inf = obj.probabilities_sum(index-1);
+            end
+        end
+    end
+end
+

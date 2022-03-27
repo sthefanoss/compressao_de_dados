@@ -1,0 +1,32 @@
+close all; clear; clc;
+% 1. gera matriz para imagem
+img = imread('./corpusNP1/Binarizado10.jpg');
+
+% 2. segmentar em blocos 2x2 | 4x4
+%paddedImg2x2 = padMatrixForMultiple(img, 2);
+%paddedImg4x4 = padMatrixForMultiple(img, 4);
+%weepedImg2x2 = sweepMatrix(paddedImg2x2, [2 2]);
+%sweepedImg4x4 = sweepMatrix(paddedImg4x4, [4 4]);
+sweepMatrix([1 2 3 4;5 6 7 8;9 10 11 12;13 14 16 16], [2 2]);
+
+
+% Extras. funcoes auxiliares
+function paddedX = padMatrixForMultiple(X, divider)
+padSize = mod(size(X), divider);
+paddedX = padarray(X, padSize, 'post');
+end
+
+function sweep = sweepMatrix(X, sweepSize)
+xSize = size(X);
+xSubSize = xSize./sweepSize
+sweep = zeros(sweepSize(1),sweepSize(2),xSubSize(1)*xSubSize(2));
+for i=1:xSize(1)
+    for j=1:xSize(2)
+        innerI = mod(i-1,sweepSize(1)) + 1;
+        innerJ = mod(j-1,sweepSize(2)) + 1;
+        k = innerI + (innerJ-1)*xSubSize(1);
+        sprintf('i%d j%d ii%d ij%d k%d v%d', i, j, innerI, innerJ,k,X())
+        sweep(innerI, innerJ, k) = X(i,j);
+    end
+end
+end
