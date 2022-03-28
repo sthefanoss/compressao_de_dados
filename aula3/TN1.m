@@ -7,75 +7,130 @@ img = img255 == 255;
 % o produto das dimensoes do  bloco nao pode passar o limite do tipo na
 % linha 11
 blockSize = [2 2];
-blocks = splitMatrixInBlocks(img, blockSize);
+[paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
+blocks = splitMatrixInBlocks(paddedImg, blockSize);
 symbols = uint64(zeros(1,length(blocks)));
 for i=1:length(symbols)
-    symbols(i) = sweepMatrix(blocks(:,:,i));
+    symbols(i) = encodeBlock(blocks(:,:,i));
 end
 
 % 3. estatisticas de simbolos unicos
 [symbolsValues, symbolsProbabilities] = getProbabilities(symbols);
 [symbolsValues, symbolsProbabilities] = sortTuplesBySecond(symbolsValues, symbolsProbabilities);
-symbolsEntropy = sum(-symbolsProbabilities.*log2(symbolsProbabilities));
+symbolInformationQuantities = -log2(symbolsProbabilities);
+symbolsEntropy = sum(symbolsProbabilities.*symbolInformationQuantities);
 
 % 3. estatisticas de simbolos de rle
-% [rle2x2Symbols,rle2x2Counts] = rleEncode(s);
-% [xx,yy] = getProbabilities(formatRleTuples(rle2x2Symbols, rle2x2Counts));
-
+rleTuples = rleEncode(symbols);
+[rleTuplesValues, rleTuplesProbabilities] = getProbabilities(rleTuples);
+[rleTuplesValues, rleTuplesProbabilities] = sortTuplesBySecond(rleTuplesValues, rleTuplesProbabilities);
+rleTuplesInformationQuantities = -log2(rleTuplesProbabilities);
+rleTuplesEntropy = sum(rleTuplesProbabilities.*rleTuplesInformationQuantities);
 
 % Extras. funcoes auxiliares
-function paddedX = padMatrixForMultiple(X, divider)
-sizeReminder = mod(size(X), divider);
-padSize = [0 0];
-if(sizeReminder(1) ~= 0)
-    padSize(1) = divider(1) - sizeReminder(1);
-end
-if (sizeReminder(2) ~=0)
-    padSize(2) = divider(2) - sizeReminder(2);
-end
-paddedX = padarray(X, padSize, 'post');
-end
-
-function blocks = splitMatrixInBlocks(X, sweepSize)
-X = padMatrixForMultiple(X, sweepSize);
-xSize = size(X);
-xSubSize = xSize./sweepSize;
-blocks = false(sweepSize(1),sweepSize(2),xSubSize(1)*xSubSize(2));
-for i=1:xSize(1)
-    for j=1:xSize(2)
-        innerI = mod(i-1,sweepSize(1)) + 1;
-        innerJ = mod(j-1,sweepSize(2)) + 1;
-        outterI = floor((i-1)/sweepSize(1)) + 1;
-        outterJ = floor((j-1)/sweepSize(2)) + 1;
-        k = outterI + (outterJ-1) * xSubSize(1); 
-        blocks(innerI, innerJ, k) = X(i,j);
+% Adiciona linhas/colunas a uma matriz que nao tem um tamanho 
+% multiplo do tamanho do bloco
+function [paddedMatrix, padding] = padMatrixForMultiple(M, divider)
+    sizeReminder = mod(size(M), divider);
+    padding = [0 0];
+    if(sizeReminder(1) ~= 0)
+        padding(1) = divider(1) - sizeReminder(1);
     end
-end
+    if (sizeReminder(2) ~=0)
+        padding(2) = divider(2) - sizeReminder(2);
+    end
+    paddedMatrix = padarray(M, padding, 'post');
 end
 
-function value = sweepMatrix(m)
-mSize = size(m);
-stream = false(1,mSize(1)*mSize(2));
-k=1;
-for i=1:mSize(1)
-    if mod(i,2)==1
-        for j=1:mSize(2)
-            stream(k) = m(i,j);
-            k=k+1;
-        end
-    else
-        for j=mSize(2):-1:1
-            stream(k) = m(i,j);
-            k=k+1;
+% remove o padding da matriz
+function M = unpadMatrix(paddedMatrix, padding)
+    %TO-DO
+end
+
+% Divide uma matriz MxN em um tensor AxBxN. As dimensoues MxN devem 
+% multiplas de AxB respectivamente. Use a funcao [padMatrixForMultiple]
+% para grantir isso. N = MxN/(AxB). Ou seja, o produto das dimensoes se mantem.
+% a terceira dimensao eh utilizada para separar os blocos. Esse valor eh
+% calculado varrendo a matriz principal em submatrizes AxB, da direita para
+% esqueda, de cima para baixo.
+function T = splitMatrixInBlocks(X, sweepSize)
+    xSize = size(X);
+    xSubSize = xSize./sweepSize;
+    T = false(sweepSize(1),sweepSize(2),xSubSize(1)*xSubSize(2));
+    for i=1:xSize(1)
+        for j=1:xSize(2)
+            innerI = mod(i-1,sweepSize(1)) + 1;
+            innerJ = mod(j-1,sweepSize(2)) + 1;
+            outterI = floor((i-1)/sweepSize(1)) + 1;
+            outterJ = floor((j-1)/sweepSize(2)) + 1;
+            k = outterI + (outterJ-1) * xSubSize(1); 
+            T(innerI, innerJ, k) = X(i,j);
         end
     end
 end
-value = 0;
-for i=1:length(stream)
-    if(stream(i) == 1)
-        value = value + bitshift(1,length(stream) - i);
+
+% transforma um tensor AxBxN de volta em uma matrix MxN
+% cada bloco T(:,:,i) deve ter o mesmo tamanho. 
+function M = joinMatrixBlocks(T)
+    % TO-DO
+end
+
+% varre um bloco AxB de cima para baixo, 
+% da esquerda para direita se j%2 = 1
+% da direita para esquerda se j%2 = 0
+% os valores sao acumulados em um vetor binario, que depois vira um uint.
+function value = encodeBlock(m)
+    mSize = size(m);
+    stream = false(1,mSize(1)*mSize(2));
+    k=1;
+    for i=1:mSize(1)
+        if mod(i,2)==1
+            for j=1:mSize(2)
+                stream(k) = m(i,j);
+                k=k+1;
+            end
+        else
+            for j=mSize(2):-1:1
+                stream(k) = m(i,j);
+                k=k+1;
+            end
+        end
+    end
+    value = 0;
+    for i=1:length(stream)
+        if(stream(i) == 1)
+            value = value + bitshift(1,length(stream) - i);
+        end
     end
 end
+
+function block = decodeBlock(value, blockSize)
+    %TO-DO
+end
+
+function tuples = rleEncode(X)
+    tuples = RleTuple(X(1), 1);
+    k = 1;
+    for i=2:length(X)
+        if(X(i) == tuples(k).symbol)
+            tuples(k) = tuples(k).bumpCount();
+        else
+            k = k + 1;
+            tuples(k) = RleTuple(X(i),1);
+        end
+    end
+end
+
+function X = rleDecode(tuples)
+    elements =  sum([tuples.count]);
+    X = padarray([], [1 elements], tuples(1).symbol, "post");
+    k = 1;
+    for i=1:length(tuples)
+        for j=1:tuples(i).count
+            X(k) = tuples(i).symbol;
+            k = k + 1;
+        end
+    end
 end
 
 function [values, prob] = getProbabilities(X)
@@ -107,36 +162,4 @@ function [sortedX, sortedY] = sortTuplesBySecond(X,Y)
     end
     sortedX = X;
     sortedY = Y;
-end
-
-function [values,counts] = rleEncode(X)
-    values(1) = X(1);
-    counts(1) = 1;
-    k = 1;
-    for i=2:length(X)
-        if(X(i) == values(k))
-            counts(k) = counts(k) + 1;
-        else
-            k = k + 1;
-            values(k) = X(i);
-            counts(k) = 1;
-        end
-    end
-end
-
-function tuples = formatRleTuples(values,counts)
-    for i=1:length(values)
-        tuples =  sprintf('(%d,%d)',values(i), counts(i));
-    end
-end
-
-function X = rleDecode(values,counts)
-    X = padarray([],[1 sum(counts)],values(1),"post")
-    k = 1;
-    for i=1:length(counts)
-        for j=1:counts(i)
-            X(k) = values(i);
-            k = k + 1;
-        end
-    end
 end
