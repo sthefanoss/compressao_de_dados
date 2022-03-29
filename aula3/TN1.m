@@ -1,7 +1,7 @@
 close all; clear; clc;
 
 % 0. pre aloca espaco 
-imageRead = 7:9;
+imageRead = 7:12;
 blockSize = [2 2];
 symbolsLength = 0;
 symbolsOffset = 0;
@@ -10,13 +10,14 @@ for i=imageRead
     img255 = imread(imagePath);
     imageSubBlocksSize = ceil(size(img255)./blockSize);
     symbolsLength = symbolsLength + imageSubBlocksSize(1)*imageSubBlocksSize(2);
+    clear img255 imageSubBlocksSize;
 end
-symbols = uint16(zeros(1,symbolsLength));
+symbols = uint32(zeros(1,symbolsLength));
 
 % 1. gera matriz para imagem
 for i=imageRead
     imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
-    img = imread(imagePath) == 255;
+    img = imread(imagePath) == 255; 
     
 % 2. segmentar em blocos
     [paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
@@ -25,18 +26,18 @@ for i=imageRead
         symbols(j+symbolsOffset) = encodeBlock(blocks(:,:,j));
     end
     symbolsOffset = symbolsOffset + length(blocks);
+    clear imagePath img paddedImg imagePadding blocks j;
 end
+clear i;
 
 % 3. estatisticas de simbolos unicos
-[symbolsValues, symbolsProbabilities] = getProbabilities(symbols);
-[symbolsValues, symbolsProbabilities] = sortTuplesBySecond(symbolsValues, symbolsProbabilities);
+[symbolsValues, symbolsProbabilities] = getProbabilities(symbols,'uint32',@(X,i) X(i));
 symbolInformationQuantities = -log2(symbolsProbabilities);
 symbolsEntropy = sum(symbolsProbabilities.*symbolInformationQuantities);
 
 % 3. estatisticas de simbolos de rle
 rleTuples = rleEncode(symbols);
-[rleTuplesValues, rleTuplesProbabilities] = getProbabilities(rleTuples);
-[rleTuplesValues, rleTuplesProbabilities] = sortTuplesBySecond(rleTuplesValues, rleTuplesProbabilities);
+[rleTuplesValues, rleTuplesProbabilities] = getProbabilities(rleTuples,'char',@(X,i) X(i).toString());
 rleTuplesInformationQuantities = -log2(rleTuplesProbabilities);
 rleTuplesEntropy = sum(rleTuplesProbabilities.*rleTuplesInformationQuantities);
 
@@ -146,20 +147,22 @@ function X = rleDecode(tuples)
     end
 end
 
-function [values, prob] = getProbabilities(X)
-    values(1) = X(1);
-    k = 1;
-    prob(1) = 1;
-    for i=2:length(X)
-        index = find(X(i)==values, 1);
-        if(isempty(index))
-            k = k + 1;
-            values(k) = X(i);
-            prob(k) = 1;        else
-            prob(index) = prob(index) + 1;
+function [values, prob] = getProbabilities(X, keyType, keyAccessCallback)
+    dict = containers.Map('KeyType',keyType,'ValueType','double');
+    for i=1:length(X)
+        key = keyAccessCallback(X,i);         
+        if(isKey(dict,key))
+            dict(key) = dict(key) + 1;
+        else
+            dict(key) = 1.0;
         end
     end
+    prob = cell2mat(dict.values);
     prob = prob/sum(prob);
+    [prob, indexes] = sort(prob,'descend');
+    keys = dict.keys;
+    values = keys(indexes);
+    %values = cell2mat(keys(indexes)); 
 end
 
 function [sortedX, sortedY] = sortTuplesBySecond(X,Y)

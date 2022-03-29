@@ -1,29 +1,40 @@
 close all; clear; clc;
-% 1. gera matriz para imagem
-img255 = imread('./corpusNP1/Binarizado10.jpg');
-img = img255 == 255;
 
-% 2. segmentar em blocos
-% o produto das dimensoes do  bloco nao pode passar o limite do tipo na
-% linha 11
+% 0. pre aloca espaco 
+imageRead = 7:8;
 blockSize = [2 2];
-[paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
-blocks = splitMatrixInBlocks(paddedImg, blockSize);
-symbols = uint64(zeros(1,length(blocks)));
-for i=1:length(symbols)
-    symbols(i) = encodeBlock(blocks(:,:,i));
+symbolsLength = 0;
+symbolsOffset = 0;
+for i=imageRead
+    imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
+    img255 = imread(imagePath);
+    imageSubBlocksSize = ceil(size(img255)./blockSize);
+    symbolsLength = symbolsLength + imageSubBlocksSize(1)*imageSubBlocksSize(2);
+end
+symbols = uint32(zeros(1,symbolsLength));
+
+% 1. gera matriz para imagem
+for i=imageRead
+    imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
+    img = imread(imagePath) == 255;
+    
+% 2. segmentar em blocos
+    [paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
+    blocks = splitMatrixInBlocks(paddedImg, blockSize);
+    for j=1:length(blocks)
+        symbols(j+symbolsOffset) = encodeBlock(blocks(:,:,j));
+    end
+    symbolsOffset = symbolsOffset + length(blocks);
 end
 
 % 3. estatisticas de simbolos unicos
-[symbolsValues, symbolsProbabilities] = getProbabilities(symbols);
-[symbolsValues, symbolsProbabilities] = sortTuplesBySecond(symbolsValues, symbolsProbabilities);
+[symbolsValues, symbolsProbabilities] = getProbabilities(symbols,'uint32',@(X,i) X(i));
 symbolInformationQuantities = -log2(symbolsProbabilities);
 symbolsEntropy = sum(symbolsProbabilities.*symbolInformationQuantities);
 
 % 3. estatisticas de simbolos de rle
 rleTuples = rleEncode(symbols);
-[rleTuplesValues, rleTuplesProbabilities] = getProbabilities(rleTuples);
-[rleTuplesValues, rleTuplesProbabilities] = sortTuplesBySecond(rleTuplesValues, rleTuplesProbabilities);
+[rleTuplesValues, rleTuplesProbabilities] = getProbabilities(rleTuples,'char',@(X,i) X(i).toString());
 rleTuplesInformationQuantities = -log2(rleTuplesProbabilities);
 rleTuplesEntropy = sum(rleTuplesProbabilities.*rleTuplesInformationQuantities);
 
@@ -47,9 +58,9 @@ function M = unpadMatrix(paddedMatrix, padding)
     %TO-DO
 end
 
-% divide uma matriz MxN em um tensor AxBxN. As dimensoues MxN devem 
-% mul
-% de forma que N = MxN/(AxB). Ou seja, o produto das dimensoes se mantem.
+% Divide uma matriz MxN em um tensor AxBxN. As dimensoues MxN devem 
+% multiplas de AxB respectivamente. Use a funcao [padMatrixForMultiple]
+% para grantir isso. N = MxN/(AxB). Ou seja, o produto das dimensoes se mantem.
 % a terceira dimensao eh utilizada para separar os blocos. Esse valor eh
 % calculado varrendo a matriz principal em submatrizes AxB, da direita para
 % esqueda, de cima para baixo.
@@ -133,33 +144,25 @@ function X = rleDecode(tuples)
     end
 end
 
-function [values, prob] = getProbabilities(X)
-    values(1) = X(1);
-    k = 1;
-    prob(1) = 1;
+function [values, prob] = getProbabilities(X, keyType, keyAccessCallback)
+    dict = containers.Map('KeyType',keyType,'ValueType','double');
     for i=2:length(X)
-        index = find(X(i)==values, 1);
-        if(isempty(index))
-            k = k + 1;
-            values(k) = X(i);
-            prob(k) = 1;
+        key = keyAccessCallback(X,i);         
+        if(isKey(dict,key))
+            dict(key) = dict(key) + 1;
         else
-            prob(index) = prob(index) + 1;
+            dict(key) = 1.0;
         end
     end
+    prob = cell2mat(dict.values);
     prob = prob/sum(prob);
+    [prob, indexes] = sort(prob,'descend');
+    keys = dict.keys;
+    values = keys(indexes);
+    %values = cell2mat(keys(indexes)); 
 end
 
 function [sortedX, sortedY] = sortTuplesBySecond(X,Y)
-    for i=1:length(X)
-        for j=i+1:length(X)
-            if(Y(i)<Y(j))
-                tempX = X(i); tempY = Y(i);
-                X(i) = X(j); Y(i) = Y(j);
-                X(j) = tempX; Y(j) = tempY;
-            end
-        end
-    end
-    sortedX = X;
-    sortedY = Y;
+    [sortedY, indexes] = sort(Y, 'descend');
+    sortedX = X(indexes);
 end

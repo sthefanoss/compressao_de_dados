@@ -24,5 +24,9 @@ classdef RleTuple
         function newObj = bumpCount(obj)
             newObj = RleTuple(obj.symbol, obj.count + 1);
         end
+
+        function str = toString(obj)
+            str = sprintf('(%d,%d)',obj.symbol, obj.count);
+        end
     end
 end
