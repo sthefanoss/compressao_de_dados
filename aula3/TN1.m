@@ -1,17 +1,30 @@
 close all; clear; clc;
-% 1. gera matriz para imagem
-img255 = imread('./corpusNP1/Binarizado10.jpg');
-img = img255 == 255;
 
-% 2. segmentar em blocos
-% o produto das dimensoes do  bloco nao pode passar o limite do tipo na
-% linha 11
+% 0. pre aloca espaco 
+imageRead = 7:9;
 blockSize = [2 2];
-[paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
-blocks = splitMatrixInBlocks(paddedImg, blockSize);
-symbols = uint64(zeros(1,length(blocks)));
-for i=1:length(symbols)
-    symbols(i) = encodeBlock(blocks(:,:,i));
+symbolsLength = 0;
+symbolsOffset = 0;
+for i=imageRead
+    imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
+    img255 = imread(imagePath);
+    imageSubBlocksSize = ceil(size(img255)./blockSize);
+    symbolsLength = symbolsLength + imageSubBlocksSize(1)*imageSubBlocksSize(2);
+end
+symbols = uint16(zeros(1,symbolsLength));
+
+% 1. gera matriz para imagem
+for i=imageRead
+    imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
+    img = imread(imagePath) == 255;
+    
+% 2. segmentar em blocos
+    [paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
+    blocks = splitMatrixInBlocks(paddedImg, blockSize);
+    for j=1:length(blocks)
+        symbols(j+symbolsOffset) = encodeBlock(blocks(:,:,j));
+    end
+    symbolsOffset = symbolsOffset + length(blocks);
 end
 
 % 3. estatisticas de simbolos unicos
@@ -142,8 +155,7 @@ function [values, prob] = getProbabilities(X)
         if(isempty(index))
             k = k + 1;
             values(k) = X(i);
-            prob(k) = 1;
-        else
+            prob(k) = 1;        else
             prob(index) = prob(index) + 1;
         end
     end
@@ -151,15 +163,6 @@ function [values, prob] = getProbabilities(X)
 end
 
 function [sortedX, sortedY] = sortTuplesBySecond(X,Y)
-    for i=1:length(X)
-        for j=i+1:length(X)
-            if(Y(i)<Y(j))
-                tempX = X(i); tempY = Y(i);
-                X(i) = X(j); Y(i) = Y(j);
-                X(j) = tempX; Y(j) = tempY;
-            end
-        end
-    end
-    sortedX = X;
-    sortedY = Y;
+    [sortedY, indexes] = sort(Y, 'descend');
+    sortedX = X(indexes);
 end
