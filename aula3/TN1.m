@@ -5,6 +5,7 @@ imageRead = 7:12;
 blockSize = [2 2];
 symbolsLength = 0;
 symbolsOffset = 0;
+binaryToIntMap = containers.Map('KeyType','char','ValueType','uint64');
 for i=imageRead
     imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
     img255 = imread(imagePath);
@@ -12,7 +13,7 @@ for i=imageRead
     symbolsLength = symbolsLength + imageSubBlocksSize(1)*imageSubBlocksSize(2);
     clear img255 imageSubBlocksSize;
 end
-symbols = uint32(zeros(1,symbolsLength));
+symbols = uint64(zeros(1,symbolsLength));
 
 % 1. gera matriz para imagem
 for i=imageRead
@@ -23,7 +24,7 @@ for i=imageRead
     [paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
     blocks = splitMatrixInBlocks(paddedImg, blockSize);
     for j=1:length(blocks)
-        symbols(j+symbolsOffset) = encodeBlock(blocks(:,:,j));
+        symbols(j+symbolsOffset) = encodeBlock(blocks(:,:,j), binaryToIntMap);
     end
     symbolsOffset = symbolsOffset + length(blocks);
     clear imagePath img paddedImg imagePadding blocks j;
@@ -93,7 +94,7 @@ end
 % da esquerda para direita se j%2 = 1
 % da direita para esquerda se j%2 = 0
 % os valores sao acumulados em um vetor binario, que depois vira um uint.
-function value = encodeBlock(m)
+function value = encodeBlock(m, binaryToIntMap)
     mSize = size(m);
     stream = false(1,mSize(1)*mSize(2));
     k=1;
@@ -110,11 +111,12 @@ function value = encodeBlock(m)
             end
         end
     end
-    value = 0;
-    for i=1:length(stream)
-        if(stream(i) == 1)
-            value = value + bitshift(1,length(stream) - i);
-        end
+    key = char(stream + '0');
+    if(binaryToIntMap.isKey(key))
+        value = binaryToIntMap(key);
+    else
+        value = bin2dec(key);
+        binaryToIntMap(key) = value;
     end
 end
 
