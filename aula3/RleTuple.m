@@ -26,7 +26,18 @@ classdef RleTuple
         end
 
         function str = toString(obj)
-            str = sprintf('(%d,%d)',obj.symbol, obj.count);
+            str = strings(1,length(obj));
+            for i=1:length(obj)
+                str(i) = sprintf('(%d,%d)',obj(i).symbol, obj(i).count);
+            end
         end
+
+        function cell = toCell(obj)
+            cell = {};
+            for i=1:length(obj)
+                cell{i} = obj(i).toString();
+            end
+        end
+        
     end
 end

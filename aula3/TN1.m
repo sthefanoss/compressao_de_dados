@@ -3,17 +3,16 @@ close all; clear; clc;
 % 0. pre aloca espaco 
 imageRead = 7:12;
 blockSize = [2 2];
-symbolsLength = 0;
-symbolsOffset = 0;
 binaryToIntMap = containers.Map('KeyType','char','ValueType','uint64');
+symbols = {};
 for i=imageRead
     imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
     img255 = imread(imagePath);
     imageSubBlocksSize = ceil(size(img255)./blockSize);
-    symbolsLength = symbolsLength + imageSubBlocksSize(1)*imageSubBlocksSize(2);
+    symbolsLength = imageSubBlocksSize(1)*imageSubBlocksSize(2);
+    symbols{i} = int32(zeros(1,symbolsLength));
     clear img255 imageSubBlocksSize;
 end
-symbols = uint64(zeros(1,symbolsLength));
 
 % 1. gera matriz para imagem
 for i=imageRead
@@ -24,23 +23,29 @@ for i=imageRead
     [paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
     blocks = splitMatrixInBlocks(paddedImg, blockSize);
     for j=1:length(blocks)
-        symbols(j+symbolsOffset) = encodeBlock(blocks(:,:,j), binaryToIntMap);
+        symbols{i}(j) = encodeBlock(blocks(:,:,j), binaryToIntMap);
     end
-    symbolsOffset = symbolsOffset + length(blocks);
     clear imagePath img paddedImg imagePadding blocks j;
 end
 clear i;
 
 % 3. estatisticas de simbolos unicos
-[symbolsValues, symbolsProbabilities] = getProbabilities(symbols,'uint32',@(X,i) X(i));
+[symbolsValues, symbolsProbabilities] = getProbabilities(cell2mat(symbols(imageRead)),'uint32',@(X,i) X(i));
 symbolInformationQuantities = -log2(symbolsProbabilities);
 symbolsEntropy = sum(symbolsProbabilities.*symbolInformationQuantities);
 
 % 3. estatisticas de simbolos de rle
-rleTuples = rleEncode(symbols);
-[rleTuplesValues, rleTuplesProbabilities] = getProbabilities(rleTuples,'char',@(X,i) X(i).toString());
+for i=imageRead
+    rleTuples{i} = rleEncode(symbols{i});
+end
+[rleTuplesValues, rleTuplesProbabilities] = getProbabilities([rleTuples{imageRead}],'char',@(X,i) X(i).toString());
 rleTuplesInformationQuantities = -log2(rleTuplesProbabilities);
 rleTuplesEntropy = sum(rleTuplesProbabilities.*rleTuplesInformationQuantities);
+
+dict = huffmandict(rleTuplesValues, rleTuplesProbabilities);
+encodedImage = huffmanenco(rleTuples{7}.toCell(), dict);
+decodedImage = huffmandeco(encodedImage, dict);
+areTheSame = areCellsEqual(decodedImage, rleTuples{7}.toCell());
 
 % Extras. funcoes auxiliares
 % Adiciona linhas/colunas a uma matriz que nao tem um tamanho 
@@ -171,3 +176,5 @@ function [sortedX, sortedY] = sortTuplesBySecond(X,Y)
     [sortedY, indexes] = sort(Y, 'descend');
     sortedX = X(indexes);
 end
+
+
