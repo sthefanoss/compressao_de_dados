@@ -91,8 +91,20 @@ end
 
 % transforma um tensor AxBxN de volta em uma matrix MxN
 % cada bloco T(:,:,i) deve ter o mesmo tamanho. 
-function M = joinMatrixBlocks(T)
-    % TO-DO
+function M = joinMatrixBlocks(T, mSize)
+    blockSize = size(T); blockSize = blockSize(1:2);
+    xSubSize = mSize./blockSize;
+    M = false(mSize);
+    for i=1:mSize(1)
+        for j=1:mSize(2)
+            innerI = mod(i-1,blockSize(1)) + 1;
+            innerJ = mod(j-1,blockSize(2)) + 1;
+            outterI = floor((i-1)/blockSize(1)) + 1;
+            outterJ = floor((j-1)/blockSize(2)) + 1;
+            k = outterI + (outterJ-1) * xSubSize(1);
+            M(i,j) = T(innerI, innerJ, k);
+        end
+    end
 end
 
 % varre um bloco AxB de cima para baixo, 
@@ -126,7 +138,22 @@ function value = encodeBlock(m, binaryToIntMap)
 end
 
 function block = decodeBlock(value, blockSize)
-    %TO-DO
+    block = false(blockSize);
+    bin = dec2bin(value, blockSize(1)*blockSize(2));
+    k=1;
+    for i=1:blockSize(1)
+        if mod(i,2)==1
+            for j=1:blockSize(2)
+                block(i,j) = bin(k) == '1';
+                k=k+1;
+            end
+        else
+            for j=blockSize(2):-1:1
+                block(i,j) = bin(k) == '1';
+                k=k+1;
+            end
+        end
+    end
 end
 
 function tuples = rleEncode(X)
