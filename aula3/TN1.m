@@ -1,9 +1,10 @@
 close all; clear; clc;
 
 % 0. pre aloca espaco 
-imageRead = 7:12;
+imageRead = 7:7;
 blockSize = [2 2];
 binaryToIntMap = containers.Map('KeyType','char','ValueType','uint64');
+imgSizes = {};
 symbols = {};
 for i=imageRead
     imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
@@ -21,6 +22,7 @@ for i=imageRead
     
 % 2. segmentar em blocos
     [paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
+    imgSize{i} = size(paddedImg);
     blocks = splitMatrixInBlocks(paddedImg, blockSize);
     for j=1:length(blocks)
         symbols{i}(j) = encodeBlock(blocks(:,:,j), binaryToIntMap);
@@ -46,6 +48,19 @@ dict = huffmandict(rleTuplesValues, rleTuplesProbabilities);
 encodedImage = huffmanenco(rleTuples{7}.toCell(), dict);
 decodedImage = huffmandeco(encodedImage, dict);
 areTheSame = areCellsEqual(decodedImage, rleTuples{7}.toCell());
+kk = cell2mat(decodedImage);
+kk = kk(2:length(kk)-1);
+barr = split(kk,')(');
+for i=1:length(barr)
+   c = split(barr{i},',');
+   tuples(i) =  RleTuple(str2num(c{1}),str2num(c{2}));
+end
+foo = rleDecode(tuples);
+for i=1:length(foo)
+    bblocks(:,:,i) = decodeBlock(foo(i), blockSize);
+end
+mat = joinMatrixBlocks(bblocks, imgSize{7});
+imshow(mat);
 
 % Extras. funcoes auxiliares
 % Adiciona linhas/colunas a uma matriz que nao tem um tamanho 
