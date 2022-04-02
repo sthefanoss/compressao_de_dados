@@ -1,52 +1,55 @@
-close all; clear; clc;
+% close all; clear; clc;
+% 
+% % 0. pre aloca espaco 
+% imageRead = 7:12;
+% %method = 'mean'; % 'lowest';
+% blockSize = [2 2];
+% binaryToIntMap = containers.Map('KeyType','char','ValueType','uint64');
+% imgSizes = {};
+% symbols = {};
+% for i=imageRead
+%     imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
+%     img255 = imread(imagePath);
+%     imageSubBlocksSize = ceil(size(img255)./blockSize);
+%     symbolsLength = imageSubBlocksSize(1)*imageSubBlocksSize(2);
+%     symbols{i} = int32(zeros(1,symbolsLength));
+%     clear img255 imageSubBlocksSize;
+% end
+% 
+% % 1. gera matriz para imagem
+% for i=imageRead
+%     imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
+%     img = imread(imagePath) == 255; 
+%     
+% % 2. segmentar em blocos
+%     [paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
+%     imgSize{i} = size(paddedImg);
+%     blocks = splitMatrixInBlocks(paddedImg, blockSize);
+%     for j=1:length(blocks)
+%         symbols{i}(j) = encodeBlock(blocks(:,:,j), binaryToIntMap);
+%     end
+%     clear imagePath img paddedImg imagePadding blocks j;
+% end
+% clear i;
+% 
+% % 3. estatisticas de simbolos unicos
+% [symbolsValues, symbolsProbabilities] = getProbabilities(cell2mat(symbols(imageRead)),'uint32',@(X,i) X(i));
+% symbolInformationQuantities = -log2(symbolsProbabilities);
+% symbolsEntropy = sum(symbolsProbabilities.*symbolInformationQuantities);
+% 
+% % 3. estatisticas de simbolos de rle
+% for i=imageRead
+%     rleTuples{i} = rleEncode(symbols{i});
+% end
+% [rleTuplesValues, rleTuplesProbabilities] = getProbabilities([rleTuples{imageRead}],'char',@(X,i) X(i).toString());
+% rleTuplesProbabilitiesMean = mean(rleTuplesProbabilities);
 
-% 0. pre aloca espaco 
-imageRead = 7:7;
-blockSize = [2 2];
-binaryToIntMap = containers.Map('KeyType','char','ValueType','uint64');
-imgSizes = {};
-symbols = {};
-for i=imageRead
-    imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
-    img255 = imread(imagePath);
-    imageSubBlocksSize = ceil(size(img255)./blockSize);
-    symbolsLength = imageSubBlocksSize(1)*imageSubBlocksSize(2);
-    symbols{i} = int32(zeros(1,symbolsLength));
-    clear img255 imageSubBlocksSize;
-end
-
-% 1. gera matriz para imagem
-for i=imageRead
-    imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
-    img = imread(imagePath) == 255; 
-    
-% 2. segmentar em blocos
-    [paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
-    imgSize{i} = size(paddedImg);
-    blocks = splitMatrixInBlocks(paddedImg, blockSize);
-    for j=1:length(blocks)
-        symbols{i}(j) = encodeBlock(blocks(:,:,j), binaryToIntMap);
-    end
-    clear imagePath img paddedImg imagePadding blocks j;
-end
-clear i;
-
-% 3. estatisticas de simbolos unicos
-[symbolsValues, symbolsProbabilities] = getProbabilities(cell2mat(symbols(imageRead)),'uint32',@(X,i) X(i));
-symbolInformationQuantities = -log2(symbolsProbabilities);
-symbolsEntropy = sum(symbolsProbabilities.*symbolInformationQuantities);
-
-% 3. estatisticas de simbolos de rle
-for i=imageRead
-    rleTuples{i} = rleEncode(symbols{i});
-end
-[rleTuplesValues, rleTuplesProbabilities] = getProbabilities([rleTuples{imageRead}],'char',@(X,i) X(i).toString());
 rleTuplesInformationQuantities = -log2(rleTuplesProbabilities);
 rleTuplesEntropy = sum(rleTuplesProbabilities.*rleTuplesInformationQuantities);
 
-dict = huffmandict(rleTuplesValues, rleTuplesProbabilities);
-encodedImage = huffmanenco(rleTuples{7}.toCell(), dict);
-decodedImage = huffmandeco(encodedImage, dict);
+dict = HuffmanDictionary(rleTuplesValues, rleTuplesProbabilities, 'mean');
+encodedImage = dict.encode(rleTuples{7}.toCell());
+decodedImage = dict.decode(encodedImage);
 areTheSame = areCellsEqual(decodedImage, rleTuples{7}.toCell());
 kk = cell2mat(decodedImage);
 kk = kk(2:length(kk)-1);
@@ -218,5 +221,3 @@ function [sortedX, sortedY] = sortTuplesBySecond(X,Y)
     [sortedY, indexes] = sort(Y, 'descend');
     sortedX = X(indexes);
 end
-
-
