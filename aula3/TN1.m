@@ -1,4 +1,3 @@
-if false
 close all; clear; clc;
 
 % 0. pre aloca espaco 
@@ -20,7 +19,7 @@ end
 % 1. gera matriz para imagem
 for i=imageRead
     imagePath = sprintf('./corpusNP1/Binarizado%d.jpg',i);
-    img = imread(imagePath) == 255; 
+    img = imread(imagePath)  > 150; 
     
 % 2. segmentar em blocos
     [paddedImg, imagePadding] = padMatrixForMultiple(img, blockSize);
@@ -47,12 +46,13 @@ rleTuplesProbabilitiesMean = mean(rleTuplesProbabilities);
 
 rleTuplesInformationQuantities = -log2(rleTuplesProbabilities);
 rleTuplesEntropy = sum(rleTuplesProbabilities.*rleTuplesInformationQuantities);
-end
-dict = HuffmanDictionary(rleTuplesValues, rleTuplesProbabilities, 'mean');
+dict = HuffmanDictionary.make(rleTuplesValues, rleTuplesProbabilities, 'without');
 aImageTuples = rleTuples{7}.toCell();
 encodedImage = dict.encode(aImageTuples);
+return;
 decodedImage = dict.decode(encodedImage);
 [areTheSame,aonde] = areCellsEqual(decodedImage,aImageTuples);
+return;
 kk = cell2mat(decodedImage);
 kk = kk(2:length(kk)-1);
 barr = split(kk,')(');
