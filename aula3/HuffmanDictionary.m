@@ -7,11 +7,11 @@ classdef (Abstract) HuffmanDictionary
     methods (Static)
         function obj = make(symbols, probabilities, escapeMethod)
             arguments
-                symbols
-                probabilities (1,:) {mustBeNumeric, mustBeFinite}
+                symbols (1,:) cell
+                probabilities (1,:) {mustBeNumeric,mustBeFinite}
                 escapeMethod char {mustBeMember(escapeMethod,{'without','expectedValue', 'lessFrequent'})} = 'without'
             end
-
+            
             if strcmp(escapeMethod, 'without')
                 obj = HuffmanDictionaryWithoutEscape(symbols, probabilities);
                 return;

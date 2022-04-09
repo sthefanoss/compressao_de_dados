@@ -13,7 +13,7 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
     methods
         function obj = HuffmanDictionaryWithEscape(symbols, probabilities, escapeMethod)
             arguments
-                symbols
+                symbols (1,:) cell
                 probabilities (1,:) {mustBeNumeric, mustBeFinite}
                 escapeMethod char {mustBeMember(escapeMethod,{'expectedValue', 'lessFrequent'})} = 'expectedValue'
             end
@@ -27,7 +27,11 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
                 obj.escapeLength = 2^obj.escapeSymbolLength;
             else
                 smallerProbability = probabilities(length(probabilities));
-                obj.escapeSymbolLength = ceil(log2(sum(probabilities == smallerProbability)));
+                smallerCount = sum(probabilities == smallerProbability);
+                obj.escapeSymbolLength = ceil(log2(smallerCount));
+                if obj.escapeSymbolLength >= ceil(log2(length(symbols)))
+                    obj.escapeSymbolLength = obj.escapeSymbolLength -1;
+                end
                 obj.escapeLength = 2^obj.escapeSymbolLength;
             end
             
@@ -36,7 +40,6 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
 
             huffmanSymbols =  symbols(huffmanIndexes);
             huffmanProbabilities =  probabilities(huffmanIndexes);
-
             scapeSymbols = symbols(scapeIndexes);
             obj.codeToSymbolScapeMap = containers.Map('KeyType','char', 'ValueType', 'char');
             obj.symbolToCodeScapeMap = containers.Map('KeyType','char', 'ValueType', 'char');
@@ -90,8 +93,8 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
             bitDataAsString = join(string(encodedData),'');
             bitDataLength = length(encodedData);
             bufferStart = 1;
-            bufferEnd = bufferStart + obj.minLength;
-            while(bufferEnd < bitDataLength)
+            bufferEnd = 2;
+            while bufferStart < bitDataLength
                 code = bitDataAsString{1}(bufferStart:bufferEnd);
                 if isKey(obj.codeToSymbolHuffmanMap, code)
                     isEscape = strcmp(code, obj.escapeCode);
