@@ -93,7 +93,7 @@ classdef ImageCompressor
             image = obj.matrixSerializer.deserialize(symbols, imageSize);
         end
     
-        function showAnalysis(obj)
+        function showBlocksAnalysis(obj)
             sprintf('Total of %d symbols, %d unique symbols. With entropy H=%f.',obj.symbolsTotalCount, length(obj.symbolsValues),obj.symbolsEntropy)
            
             indexes = 1:min(16, length(obj.symbolsValues));
@@ -106,7 +106,9 @@ classdef ImageCompressor
             Symbol = obj.symbolsValues(indexes)';
             InformationQuantity = obj.symbolsInformationQuantities(indexes)';
             table(Index, Symbol, Probability, InformationQuantity)
-            
+        end
+
+        function showRleTuplesAnalysis(obj)
             sprintf('Total of %d rle tuples, %d unique rle tuples. With entropy H=%f.', obj.rleTuplesTotalCount, length(obj.rleTuplesValues),obj.rleTuplesEntropy)
             indexes = 1:min(16, length(obj.rleTuplesValues));
             figure
@@ -118,6 +120,9 @@ classdef ImageCompressor
             RleTuple = obj.rleTuplesValues(indexes)';
             InformationQuantity = obj.rleTuplesInformationQuantities(indexes)';
             table(Index, RleTuple, Probability, InformationQuantity)
+        end
+
+        function showHuffmanAnalysis(obj)
             if not(strcmp(obj.huffmanDictionary.escapeMethod,'without'))
                 sprintf('Huffman dictionary with %d escape symbols. Average length of %f.', obj.huffmanDictionary.escapeLength,obj.huffmanDictionary.averageLength)
             else
@@ -125,7 +130,7 @@ classdef ImageCompressor
             end
         end
 
-        function result = benchmark(obj, imagePaths)
+        function result = runImagesBenchmark(obj, imagePaths)
             arguments
                 obj
                 imagePaths (1,:) cell = obj.trainImagePaths
@@ -138,18 +143,18 @@ classdef ImageCompressor
                 imageSizeInBits(i) = imageSize(1)*imageSize(2);
                 imageSymbols = obj.matrixSerializer.serialize(image > 150);
                 rleTuples = obj.rleEncoder.encode(imageSymbols);
-                symbolsCount(i) = length(rleTuples);
-                estimatedCompressionLength(i) = symbolsCount(i)*obj.huffmanDictionary.averageLength;
+                tuplesCount(i) = length(rleTuples);
+                estimatedCompressionLength(i) = tuplesCount(i)*obj.huffmanDictionary.averageLength;
                 [imageCompressed, compressionLength(i)] = obj.compressImage(image);
                 ratio(i) = compressionLength(i)/imageSizeInBits(i);
             end
             Index = indexes';
             ImageSizeInBits = imageSizeInBits';
-            SymbolsCount = symbolsCount';
+            TuplesCount = tuplesCount';
             EstimatedCompressionLength = estimatedCompressionLength';
             CompressionLength= compressionLength';
             Ratio = ratio';
-            result = table(Index, ImageSizeInBits, SymbolsCount, EstimatedCompressionLength, CompressionLength, Ratio);
+            result = table(Index, ImageSizeInBits, TuplesCount, EstimatedCompressionLength, CompressionLength, Ratio);
         end
     end
 end

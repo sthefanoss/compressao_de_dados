@@ -7,9 +7,8 @@ for i=7:12
 end
 
 imageCompressor = ImageCompressor([4 4], trainImagePaths,'lessFrequent');
-imageCompressor.showAnalysis();
+%  imageCompressor.showBlocksAnalysis();
+%  imageCompressor.showRleTuplesAnalysis();
+ imageCompressor.showHuffmanAnalysis()
+  imageCompressor.runImagesBenchmark()
 % imageCompressor.benchmark(trainImagePaths(1:3))
-return;
-[compressedImage, compressionRatio] = imageCompressor.compressImageByPath(trainImagePaths{1});
-image = imageCompressor.decompressImage(compressedImage);
-imshow(image);
