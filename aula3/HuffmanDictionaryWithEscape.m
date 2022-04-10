@@ -93,7 +93,7 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
             bitDataAsString = join(string(encodedData),'');
             bitDataLength = length(encodedData);
             bufferStart = 1;
-            bufferEnd = 2;
+            bufferEnd = 1;
             while bufferStart < bitDataLength
                 code = bitDataAsString{1}(bufferStart:bufferEnd);
                 if isKey(obj.codeToSymbolHuffmanMap, code)
@@ -106,12 +106,12 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
                         data{length(data)+1} = symbol;
 
                         bufferStart = scapeCodeEndIndex+1;
-                        bufferEnd = bufferStart + obj.minLength-1;
+                        bufferEnd = bufferStart;
                     else
                         symbol = obj.codeToSymbolHuffmanMap(code);
                         data{length(data)+1} = symbol;
                         bufferStart = bufferEnd + 1;
-                        bufferEnd = bufferStart + obj.minLength-1;
+                        bufferEnd = bufferStart;
                     end
                 else
                     bufferEnd = bufferEnd+1;
