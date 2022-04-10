@@ -22,6 +22,7 @@ classdef ImageCompressor
     properties
         matrixSerializer MatrixSerializer
         rleEncoder RleEncoder
+        eliasGammaEncoder EliasGammaEncoder
         huffmanDictionary
         symbolsValues
         symbolsProbabilities
@@ -43,6 +44,7 @@ classdef ImageCompressor
 
             obj.matrixSerializer = MatrixSerializer(blockSize);
             obj.rleEncoder = RleEncoder();
+            obj.eliasGammaEncoder = EliasGammaEncoder();
             indexes = 1:length(trainImagePaths);
 
             for i=indexes
@@ -61,21 +63,24 @@ classdef ImageCompressor
             obj.huffmanDictionary = HuffmanDictionary.make(obj.rleTuplesValues,obj.rleTuplesProbabilities, escapeMethod);
         end
 
-        function [compressedImage, imageSize, compressionRatio] = compressImage(obj, image)
+        function [compressedImage, compressionRatio] = compressImage(obj, image)
             image = image > 150;
             [imageSymbols,imageSize] = obj.matrixSerializer.serialize(image);
             rleTuples = obj.rleEncoder.encode(imageSymbols);
             compressedImage = obj.huffmanDictionary.encode(rleTuples);
             compressionRatio = length(compressedImage)/(imageSize(1)*imageSize(2));
+            encodedImageSize = obj.eliasGammaEncoder.encodeList(size(image));
+            compressedImage = [encodedImageSize, compressedImage];
         end
 
 
-        function [compressedImage, imageSize, compressionRatio] = compressImageByPath(obj, imagePath)
+        function [compressedImage, compressionRatio] = compressImageByPath(obj, imagePath)
             image = imread(imagePath);
-            [compressedImage, imageSize, compressionRatio] = obj.compressImage(image);
+            [compressedImage, compressionRatio] = obj.compressImage(image);
         end
 
-        function image = decompressImage(obj, compressedImage, imageSize)
+        function image = decompressImage(obj, compressedImage)
+            [imageSize,compressedImage] = obj.eliasGammaEncoder.decodeList(compressedImage, 2);
             rleTuples = obj.huffmanDictionary.decode(compressedImage);
             symbols = obj.rleEncoder.decode(rleTuples);
             image = obj.matrixSerializer.deserialize(symbols, imageSize);

@@ -136,7 +136,9 @@ classdef MatrixSerializer
             for i=1:serializedMatrixSize(2)
                 blocks(:,:,i) = obj.decodeBlock(serializedMatrix(i));
             end
-            matrix = obj.joinMatrixBlocks(blocks, matrixSize);
+            paddedMatrixSize = ceil(matrixSize./obj.blockSize).*obj.blockSize;
+            matrix = obj.joinMatrixBlocks(blocks, paddedMatrixSize);
+            matrix = matrix(1:matrixSize(1),1:matrixSize(2));
         end
     end
 end
