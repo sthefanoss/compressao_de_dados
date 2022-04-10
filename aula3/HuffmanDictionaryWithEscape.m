@@ -1,13 +1,12 @@
 classdef HuffmanDictionaryWithEscape < HuffmanDictionary
     properties
         escapeLength
-        codeToSymbolScapeMap
-        symbolToCodeScapeMap
+        codeToSymbolEscapeMap
+        symbolToCodeEscapeMap
         codeToSymbolHuffmanMap
         symbolToCodeHuffmanMap
         escapeCode
         escapeSymbolLength
-        minLength
     end
 
     methods
@@ -24,7 +23,6 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
             if strcmp(escapeMethod, 'expectedValue')
                 expectedValue = mean(probabilities);
                 obj.escapeSymbolLength = floor(log2(sum(probabilities < expectedValue)));
-                obj.escapeLength = 2^obj.escapeSymbolLength;
             else
                 smallerProbability = probabilities(length(probabilities));
                 smallerCount = sum(probabilities == smallerProbability);
@@ -32,32 +30,40 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
                 if obj.escapeSymbolLength >= ceil(log2(length(symbols)))
                     obj.escapeSymbolLength = obj.escapeSymbolLength -1;
                 end
-                obj.escapeLength = 2^obj.escapeSymbolLength;
             end
-            
-            scapeIndexes = length(symbols)-obj.escapeLength+1:length(symbols);
-            huffmanIndexes = 1:scapeIndexes(2)-2;
+            obj.escapeLength = 2^obj.escapeSymbolLength;
+            escapeIndexes = length(symbols)-obj.escapeLength+1:length(symbols);
+            huffmanIndexes = 1:escapeIndexes(2)-2;
 
             huffmanSymbols =  symbols(huffmanIndexes);
             huffmanProbabilities =  probabilities(huffmanIndexes);
-            scapeSymbols = symbols(scapeIndexes);
-            obj.codeToSymbolScapeMap = containers.Map('KeyType','char', 'ValueType', 'char');
-            obj.symbolToCodeScapeMap = containers.Map('KeyType','char', 'ValueType', 'char');
+            escapeSymbols = symbols(escapeIndexes);
+            obj.codeToSymbolEscapeMap = containers.Map('KeyType','char', 'ValueType', 'char');
+            obj.symbolToCodeEscapeMap = containers.Map('KeyType','char', 'ValueType', 'char');
             for i=1:obj.escapeLength
                 code = dec2bin(i-1, obj.escapeSymbolLength);
-                tuple = scapeSymbols{i};
-                obj.codeToSymbolScapeMap(code) = tuple;
-                obj.symbolToCodeScapeMap(tuple) = code;
+                tuple = escapeSymbols{i};
+                obj.codeToSymbolEscapeMap(code) = tuple;
+                obj.symbolToCodeEscapeMap(tuple) = code;
             end
 
-            scapeSymbolIndex = length(huffmanSymbols) + 1;
-            huffmanSymbols(scapeSymbolIndex) = {'escape'};
-            huffmanProbabilities(scapeSymbolIndex) = sum(probabilities(scapeIndexes));
+            escapeSymbolIndex = length(huffmanSymbols) + 1;
+            escapeProbability = sum(probabilities(escapeIndexes));
+            huffmanSymbols(escapeSymbolIndex) = {'escape'};
+            huffmanProbabilities(escapeSymbolIndex) = escapeProbability;
             [huffmanProbabilities, sortedIndexes] = sort(huffmanProbabilities, 'descend');
             huffmanSymbols = huffmanSymbols(sortedIndexes);
+            huffmanSymbolsProbabilityMap = containers.Map('KeyType','char','ValueType', 'double');
+            for i=1:length(huffmanSymbols)
+                huffmanSymbolsProbabilityMap(huffmanSymbols{i}) = huffmanProbabilities(i);
+            end
+            
             obj.dictionary = huffmandict(huffmanSymbols, huffmanProbabilities);
+       
+
             obj.codeToSymbolHuffmanMap = containers.Map('KeyType','char', 'ValueType', 'char');
             obj.symbolToCodeHuffmanMap = containers.Map('KeyType','char', 'ValueType', 'char');
+            obj.averageLength = 0;
             for i=1:length(obj.dictionary)
                 code = join(string(obj.dictionary{i,2}),'');
                 tuple = obj.dictionary{i,1};
@@ -65,17 +71,21 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
                 obj.symbolToCodeHuffmanMap(tuple) = code;
                 if(strcmp(tuple,'escape'))
                     obj.escapeCode = code;
+                    codeAverageLength = (strlength(code)+obj.escapeSymbolLength)*escapeProbability;
+                    obj.averageLength = obj.averageLength + codeAverageLength;
+                else
+                    codeAverageLength = strlength(code)*huffmanSymbolsProbabilityMap(tuple);
+                    obj.averageLength = obj.averageLength + codeAverageLength;
                 end
             end
-            obj.minLength = length(obj.dictionary{1,2});
         end
 
         function encodedData = encode(obj, data)
             stream = "";
             for i=1:length(data)
                 symbol = data{i};
-                if isKey(obj.symbolToCodeScapeMap, symbol)
-                    currentCode = strcat(obj.escapeCode, obj.symbolToCodeScapeMap(symbol));
+                if isKey(obj.symbolToCodeEscapeMap, symbol)
+                    currentCode = strcat(obj.escapeCode, obj.symbolToCodeEscapeMap(symbol));
                 else
                     currentCode = obj.symbolToCodeHuffmanMap(symbol);
                 end
@@ -102,7 +112,7 @@ classdef HuffmanDictionaryWithEscape < HuffmanDictionary
                         scapeCodeStartIndex = bufferEnd+1;
                         scapeCodeEndIndex = scapeCodeStartIndex+obj.escapeSymbolLength-1;
                         scapeCode = bitDataAsString{1}(scapeCodeStartIndex:scapeCodeEndIndex);
-                        symbol = obj.codeToSymbolScapeMap(scapeCode);
+                        symbol = obj.codeToSymbolEscapeMap(scapeCode);
                         data{length(data)+1} = symbol;
 
                         bufferStart = scapeCodeEndIndex+1;

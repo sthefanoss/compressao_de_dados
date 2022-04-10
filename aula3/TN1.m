@@ -6,8 +6,10 @@ for i=7:12
     trainImagePaths{index} = sprintf('./corpusNP1/Binarizado%d.jpg',i);
 end
 
-imageCompressor = ImageCompressor([6 6], trainImagePaths,'expectedValue');
-
-[compressedImage,imageSize, compressionRatio] = imageCompressor.compressImageByPath(trainImagePaths{1});
-image = imageCompressor.decompressImage(compressedImage, imageSize);
+imageCompressor = ImageCompressor([4 4], trainImagePaths,'lessFrequent');
+imageCompressor.showAnalysis();
+% imageCompressor.benchmark(trainImagePaths(1:3))
+return;
+[compressedImage, compressionRatio] = imageCompressor.compressImageByPath(trainImagePaths{1});
+image = imageCompressor.decompressImage(compressedImage);
 imshow(image);

@@ -5,7 +5,7 @@ classdef HuffmanDictionaryWithoutEscape < HuffmanDictionary
                 symbols (1,:) cell
                 probabilities (1,:) {mustBeNumeric, mustBeFinite}
             end
-            obj.dictionary = huffmandict(symbols, probabilities);
+            [obj.dictionary,obj.averageLength] = huffmandict(symbols, probabilities);
             obj.escapeMethod = 'without';
         end
 

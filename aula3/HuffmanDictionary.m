@@ -1,6 +1,7 @@
 classdef (Abstract) HuffmanDictionary
     properties
         dictionary
+        averageLength
         escapeMethod char
     end
 
@@ -16,7 +17,6 @@ classdef (Abstract) HuffmanDictionary
                 obj = HuffmanDictionaryWithoutEscape(symbols, probabilities);
                 return;
             end
-
             obj = HuffmanDictionaryWithEscape(symbols, probabilities, escapeMethod);
         end
     end
