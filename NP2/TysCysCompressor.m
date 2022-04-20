@@ -120,7 +120,9 @@ classdef TysCysCompressor
                 [rleTuplesValues, rleTuplesProbabilities] = getProbabilities(rleTuples,'char',@(X,i) X(i));
                 rleTuplesInformationQuantities = -log2(rleTuplesProbabilities);
                 rleTuplesEntropy(i) = sum(rleTuplesProbabilities.*rleTuplesInformationQuantities);
-                estimatedSize(i) = (2*64*whiteBlocksTuplesCount(i) + rleTuplesEntropy(i)*rleTuplesCount(i))/(8*1024);
+                whiteBlocksIndexBitlength = ceil(log2(double(max(Tys(:,1)))));
+                whiteBlocksCountBitlength = ceil(log2(double(max(Tys(:,2)))));
+                estimatedSize(i) = ((whiteBlocksIndexBitlength+whiteBlocksCountBitlength)*whiteBlocksTuplesCount(i) + rleTuplesEntropy(i)*rleTuplesCount(i))/(8*1024);
             end
             Index = indexes';
             WhiteBlocksCount = whiteBlocks';
