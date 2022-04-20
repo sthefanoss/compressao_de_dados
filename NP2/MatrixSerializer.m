@@ -18,9 +18,19 @@ classdef MatrixSerializer
                 padding(2) = obj.blockSize(2) - sizeReminder(2);
             end
             paddedMatrix = padarray(matrix, padding, 'post');
-        end
+         end
+    end
 
-        % Divide uma matriz MxN em um tensor AxBxN. As dimensoues MxN devem
+    methods
+        function obj = MatrixSerializer(blockSize)
+            arguments
+                blockSize (1,2) 
+            end
+            obj.blockSize = blockSize;
+            obj.binaryToUint64Map = containers.Map('KeyType','char','ValueType','uint64');
+        end
+        
+      % Divide uma matriz MxN em um tensor AxBxN. As dimensoues MxN devem
         % multiplas de AxB respectivamente. Use a funcao [padMatrixForMultiple]
         % para grantir isso. N = MxN/(AxB). Ou seja, o produto das dimensoes se mantem.
         % a terceira dimensao eh utilizada para separar os blocos. Esse valor eh
@@ -106,17 +116,8 @@ classdef MatrixSerializer
                 end
             end
         end
-    end
 
-    methods
-        function obj = MatrixSerializer(blockSize)
-            arguments
-                blockSize (1,2) 
-            end
-            obj.blockSize = blockSize;
-            obj.binaryToUint64Map = containers.Map('KeyType','char','ValueType','uint64');
-        end
-        
+
         function [serializedMatrix,paddedMatrixSize] = serialize(obj, matrix)
             subBlocksSize = ceil(size(matrix)./(obj.blockSize));
             serializedMatrixLength = subBlocksSize(1)*subBlocksSize(2);
