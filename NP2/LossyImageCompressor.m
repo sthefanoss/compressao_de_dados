@@ -26,6 +26,7 @@ classdef LossyImageCompressor
         blockTransformer BlockTransformer
         blockQuantizer BlockQuantizer
         blockScanner BlockScanner
+        whiteBlockSeparator WhiteBlockSeparator
         trainImages
         huffmanDictionary
         symbolsTotalCount
@@ -54,12 +55,16 @@ classdef LossyImageCompressor
             obj.blockTransformer = BlockTransformer(blockSize);
             obj.blockQuantizer = BlockQuantizer(blockSize);
             obj.blockScanner = BlockScanner(blockSize);
+            obj.whiteBlockSeparator = WhiteBlockSeparator();
             indexes = 1:length(trainImages);
             totalRleTuples = {};
             for i=indexes
                 image = trainImages{i};
                 blocks = obj.matrixSerializer.splitMatrixIntoBlocks(image);
-                for j=1:length(blocks)
+                for j=1:size(blocks,3)
+                    if all(all(blocks(:,:,j) == 255))
+                        continue;
+                    end
                     transformedBlock = obj.blockTransformer.transform(blocks(:,:,j));
                     quantizedBlock = obj.blockQuantizer.quantize(transformedBlock);
                     blockScan = obj.blockScanner.scan(quantizedBlock);
@@ -79,9 +84,10 @@ classdef LossyImageCompressor
 
         function [compressedImage, compressionLength] = compressImage(obj, image)
                 blocks = obj.matrixSerializer.splitMatrixIntoBlocks(image);
+                [Tys,Cys] = obj.whiteBlockSeparator.split(blocks);
                 rleTuples = {};
-                for j=1:length(blocks)
-                    transformedBlock = obj.blockTransformer.transform(blocks(:,:,j));
+                for j=1:size(Cys,3)
+                    transformedBlock = obj.blockTransformer.transform(Cys(:,:,j));
                     quantizedBlock = obj.blockQuantizer.quantize(transformedBlock);
                     blockScan = obj.blockScanner.scan(quantizedBlock);
                     blockRleTuples = obj.rleEncoder.encode(blockScan);
@@ -89,10 +95,14 @@ classdef LossyImageCompressor
                         rleTuples{length(rleTuples)+1} = blockRleTuples{k};
                     end
                 end
-                compressedImage = obj.huffmanDictionary.encode(rleTuples);
+                tysLenght = size(Tys,1); 
+                compressedWhiteBlocks = obj.eliasGammaEncoder.encodeList(reshape(Tys',1,[]));
+                compressedRleTuples = obj.huffmanDictionary.encode(rleTuples);
+                compressedImage = [compressedWhiteBlocks compressedRleTuples];
                 compressionLength = length(compressedImage);
-                encodedImageSize = obj.eliasGammaEncoder.encodeList(size(image));
-                compressedImage = [encodedImageSize, compressedImage];
+                metaData = [tysLenght size(image)];
+                encodedMetaData = obj.eliasGammaEncoder.encodeList(metaData);
+                compressedImage = [encodedMetaData, compressedImage];
         end
 
         function [compressedImage, compressionRatio] = compressImageByPath(obj, imagePath)
@@ -100,19 +110,23 @@ classdef LossyImageCompressor
             [compressedImage, compressionRatio] = obj.compressImage(image);
         end
 
-        function image = decompressImage(obj, compressedImage)
-            [imageSize,compressedImage] = obj.eliasGammaEncoder.decodeList(compressedImage, 2);
+        function [image,Tys] = decompressImage(obj, compressedImage)
+            [metaData, reminder] = obj.eliasGammaEncoder.decodeList(compressedImage, 3);
+            [Tys, compressedImage] = obj.eliasGammaEncoder.decodeList(reminder, 2*metaData(1));
+            Tys = reshape(Tys', 2,[])';
             rleTuples = obj.huffmanDictionary.decode(compressedImage);
             stream = obj.rleEncoder.decode(rleTuples);
             scanSize = obj.matrixSerializer.blockSize(1)*obj.matrixSerializer.blockSize(2);
             blockScans = reshape(stream, scanSize, [])';
-            blocks = zeros(obj.matrixSerializer.blockSize(1),obj.matrixSerializer.blockSize(2),length(blockScans));
-            for i=1:length(blockScans)
+            blockScanSize =  size(blockScans);
+            Cys = zeros(obj.matrixSerializer.blockSize(1),obj.matrixSerializer.blockSize(2),length(blockScans));
+            for i=1:blockScanSize(1)
                 blockScan = obj.blockScanner.build(blockScans(i,:));
                 dequantizedBlock = obj.blockQuantizer.dequantize(blockScan);
-                blocks(:,:,i) = obj.blockTransformer.inverseTransform(dequantizedBlock);
+                Cys(:,:,i) = obj.blockTransformer.inverseTransform(dequantizedBlock);
             end
-            image = uint8(obj.matrixSerializer.joinMatrixBlocks(blocks,imageSize));
+            blocks = obj.whiteBlockSeparator.join(Tys,Cys);
+            image = uint8(obj.matrixSerializer.joinMatrixBlocks(blocks,metaData(2:3)));
         end
     
         function showBlocksAnalysis(obj)

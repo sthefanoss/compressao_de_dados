@@ -15,7 +15,7 @@ classdef BlockQuantizer
             obj.matrixInv = zeros(blockSize);
             for i=1:blockSize(1)
                 for j=1:blockSize(2)
-                    value = 2^(i-1)+2^(j-1)-1;
+                    value = 1 + 2*(i-1) + 2*(j-1);
                     obj.matrix(i,j) = value;
                     obj.matrixInv(i,j) = 1/value;
                 end
