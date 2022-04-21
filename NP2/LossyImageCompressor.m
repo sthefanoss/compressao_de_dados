@@ -82,7 +82,7 @@ classdef LossyImageCompressor
             obj.huffmanDictionary = HuffmanDictionary.make(obj.rleTuplesValues,obj.rleTuplesProbabilities, escapeMethod);
         end
 
-        function [compressedImage, compressionLength] = compressImage(obj, image)
+        function [compressedImage, compressionLength, ratio] = compressImage(obj, image)
                 blocks = obj.matrixSerializer.splitMatrixIntoBlocks(image);
                 [Tys,Cys] = obj.whiteBlockSeparator.split(blocks);
                 rleTuples = {};
@@ -100,9 +100,10 @@ classdef LossyImageCompressor
                 compressedRleTuples = obj.huffmanDictionary.encode(rleTuples);
                 compressedImage = [compressedWhiteBlocks compressedRleTuples];
                 compressionLength = length(compressedImage);
-                metaData = [tysLenght size(image)];
+                metaData = [(tysLenght+1) size(image)];
                 encodedMetaData = obj.eliasGammaEncoder.encodeList(metaData);
                 compressedImage = [encodedMetaData, compressedImage];
+                ratio = compressionLength / (8*size(image,1)*size(image,2));
         end
 
         function [compressedImage, compressionRatio] = compressImageByPath(obj, imagePath)
@@ -110,10 +111,15 @@ classdef LossyImageCompressor
             [compressedImage, compressionRatio] = obj.compressImage(image);
         end
 
-        function [image,Tys] = decompressImage(obj, compressedImage)
-            [metaData, reminder] = obj.eliasGammaEncoder.decodeList(compressedImage, 3);
-            [Tys, compressedImage] = obj.eliasGammaEncoder.decodeList(reminder, 2*metaData(1));
-            Tys = reshape(Tys', 2,[])';
+        function image = decompressImage(obj, compressedImage)
+            [metaData, compressedImage] = obj.eliasGammaEncoder.decodeList(compressedImage, 3);
+            TysLength = metaData(1)-1;
+            if TysLength > 0
+                [Tys, compressedImage] = obj.eliasGammaEncoder.decodeList(compressedImage, 2*TysLength);
+                Tys = reshape(Tys', 2,[])';
+            else
+                Tys = [];
+            end
             rleTuples = obj.huffmanDictionary.decode(compressedImage);
             stream = obj.rleEncoder.decode(rleTuples);
             scanSize = obj.matrixSerializer.blockSize(1)*obj.matrixSerializer.blockSize(2);

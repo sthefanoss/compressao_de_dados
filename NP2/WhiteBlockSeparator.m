@@ -17,7 +17,7 @@ classdef WhiteBlockSeparator
                 Tys(1,:) = [1,1];
             else
                 cIndex = 1;
-                Cys(1,:) = blocks(:,:,1);
+                Cys(:,:,1) = blocks(:,:,1);
             end
 
             for i=2:length(blocks)
