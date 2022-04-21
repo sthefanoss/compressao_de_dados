@@ -8,10 +8,10 @@ for i=7:7
     index = length(trainImages)+1;    
      trainImages{index} = imread(sprintf('./corpusNP1/Binarizado%d.jpg',i));
 %     trainImages{index} = drmanhattan;
-    trainImages{index} = trainImages{index}(1:100,1:100);
-     imshow(trainImages{index})
+     trainImages{index} = trainImages{index}(1:100,1:100);
+      imshow(trainImages{index})
 end
-imageCompressor = LossyImageCompressor([8 8], trainImages,'lessFrequent');
+imageCompressor = LossyImageCompressor([5 5], trainImages,'lessFrequent', 'wht');
 [compressedImage,len,ratio] = imageCompressor.compressImage(trainImages{1});
 
 %% Compression and decompression exemple

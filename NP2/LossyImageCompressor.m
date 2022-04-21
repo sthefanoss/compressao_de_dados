@@ -27,6 +27,7 @@ classdef LossyImageCompressor
         blockQuantizer BlockQuantizer
         blockScanner BlockScanner
         whiteBlockSeparator WhiteBlockSeparator
+        transformBlockSize 
         trainImages
         huffmanDictionary
         symbolsTotalCount
@@ -42,20 +43,29 @@ classdef LossyImageCompressor
     end
 
     methods
-        function obj = LossyImageCompressor(blockSize, trainImages, escapeMethod)
+        function obj = LossyImageCompressor(blockSize, trainImages, escapeMethod,transformMethod, quantizerValueGenerator)
             arguments
                 blockSize (1,2)
                 trainImages (1,:) cell
                 escapeMethod char {mustBeMember(escapeMethod,{'without','expectedValue', 'lessFrequent'})} = 'without'
+                transformMethod char {mustBeMember(transformMethod,{'dct','wht'})} = 'dct'
+                quantizerValueGenerator = @(i,j) 1 + 25*i + 25*j;
+            end
+            if transformMethod == 'dct'
+                obj.transformBlockSize = blockSize;
+            else
+                dummyMatrix = ones(blockSize(1),blockSize(2));
+                obj.transformBlockSize = size(fwht(fwht(dummyMatrix)'));
             end
             obj.trainImages = trainImages;
             obj.matrixSerializer = MatrixSerializer(blockSize);
             obj.rleEncoder = RleEncoder();
             obj.eliasGammaEncoder = EliasGammaEncoder();
-            obj.blockTransformer = BlockTransformer(blockSize);
-            obj.blockQuantizer = BlockQuantizer(blockSize);
-            obj.blockScanner = BlockScanner(blockSize);
+            obj.blockTransformer = BlockTransformer(blockSize,transformMethod);
+            obj.blockQuantizer = BlockQuantizer(obj.transformBlockSize,quantizerValueGenerator);
+            obj.blockScanner = BlockScanner(obj.transformBlockSize);
             obj.whiteBlockSeparator = WhiteBlockSeparator();
+          
             indexes = 1:length(trainImages);
             totalRleTuples = {};
             for i=indexes
@@ -122,7 +132,7 @@ classdef LossyImageCompressor
             end
             rleTuples = obj.huffmanDictionary.decode(compressedImage);
             stream = obj.rleEncoder.decode(rleTuples);
-            scanSize = obj.matrixSerializer.blockSize(1)*obj.matrixSerializer.blockSize(2);
+            scanSize = obj.transformBlockSize(1)*obj.transformBlockSize(2);
             blockScans = reshape(stream, scanSize, [])';
             blockScanSize =  size(blockScans);
             Cys = zeros(obj.matrixSerializer.blockSize(1),obj.matrixSerializer.blockSize(2),length(blockScans));
