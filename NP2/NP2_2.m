@@ -11,7 +11,8 @@ for i=7:7
      trainImages{index} = trainImages{index}(1:100,1:100);
       imshow(trainImages{index})
 end
-imageCompressor = LossyImageCompressor([5 5], trainImages,'lessFrequent', 'wht');
+quantizerValueGenerator = @(i,j) 1 + 10*i + 10*j;
+imageCompressor = LossyImageCompressor([5 5], trainImages,'lessFrequent', 'dct',quantizerValueGenerator);
 [compressedImage,len,ratio] = imageCompressor.compressImage(trainImages{1});
 
 %% Compression and decompression exemple
