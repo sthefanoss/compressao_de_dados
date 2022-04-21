@@ -30,16 +30,16 @@ classdef MatrixSerializer
             obj.binaryToUint64Map = containers.Map('KeyType','char','ValueType','uint64');
         end
         
-      % Divide uma matriz MxN em um tensor AxBxN. As dimensoues MxN devem
-        % multiplas de AxB respectivamente. Use a funcao [padMatrixForMultiple]
+      % Divide uma matriz MxN em um tensor AxBxN.
         % para grantir isso. N = MxN/(AxB). Ou seja, o produto das dimensoes se mantem.
         % a terceira dimensao eh utilizada para separar os blocos. Esse valor eh
         % calculado varrendo a matriz principal em submatrizes AxB, da direita para
         % esqueda, de cima para baixo.
         function blocks = splitMatrixIntoBlocks(obj, matrix)
+            matrix = obj.padMatrixForMultiple(matrix);
             matrixSize = size(matrix);
             matrixSections = matrixSize./obj.blockSize;
-            blocks = false(obj.blockSize(1),obj.blockSize(2),matrixSections(1)*matrixSections(2));
+            blocks = zeros(obj.blockSize(1),obj.blockSize(2),matrixSections(1)*matrixSections(2));
             for i=1:matrixSize(1)
                 for j=1:matrixSize(2)
                     blockI = mod(i-1, obj.blockSize(1)) + 1;
@@ -55,10 +55,11 @@ classdef MatrixSerializer
         % transforma um tensor AxBxN de volta em uma matrix MxN
         % cada bloco T(:,:,i) deve ter o mesmo tamanho.
         function matrix = joinMatrixBlocks(obj, blocks, matrixSize)
-            matrixSections = matrixSize./obj.blockSize;
-            matrix = false(matrixSize);
-            for i=1:matrixSize(1)
-                for j=1:matrixSize(2)
+            paddedMatrixSize = ceil(matrixSize./obj.blockSize).*obj.blockSize;
+            matrixSections = paddedMatrixSize./obj.blockSize;
+            matrix = zeros(paddedMatrixSize);
+            for i=1:paddedMatrixSize(1)
+                for j=1:paddedMatrixSize(2)
                     blockI = mod(i-1, obj.blockSize(1)) + 1;
                     blockJ = mod(j-1, obj.blockSize(2)) + 1;
                     sectionI = floor((i-1)/obj.blockSize(1)) + 1;
@@ -67,6 +68,7 @@ classdef MatrixSerializer
                     matrix(i,j) = blocks(blockI, blockJ, blockIndex);
                 end
             end
+            matrix = matrix(1:matrixSize(1),1:matrixSize(2));
         end
 
         % varre um bloco AxB de cima para baixo,
@@ -74,7 +76,7 @@ classdef MatrixSerializer
         % da direita para esquerda se j%2 = 0
         % os valores sao acumulados em um vetor binario, que depois vira um uint.
         function symbol = encodeBlock(obj, block)
-            stream = false(1, obj.blockSize(1)*obj.blockSize(2));
+            stream = zeros(1, obj.blockSize(1)*obj.blockSize(2));
             k=1;
             for i=1:obj.blockSize(1)
                 if mod(i,2)==1
@@ -99,7 +101,7 @@ classdef MatrixSerializer
         end
 
         function block = decodeBlock(obj, symbol)
-            block = false(obj.blockSize);
+            block = zeros(obj.blockSize);
             bin = dec2bin(symbol, obj.blockSize(1)*obj.blockSize(2));
             k=1;
             for i=1:obj.blockSize(1)
@@ -118,28 +120,24 @@ classdef MatrixSerializer
         end
 
 
-        function [serializedMatrix,paddedMatrixSize] = serialize(obj, matrix)
-            subBlocksSize = ceil(size(matrix)./(obj.blockSize));
-            serializedMatrixLength = subBlocksSize(1)*subBlocksSize(2);
-            serializedMatrix = uint64(zeros(1,serializedMatrixLength));
-            paddedMatrix = obj.padMatrixForMultiple(matrix);
-            paddedMatrixSize = size(paddedMatrix);
-
-            blocks = obj.splitMatrixIntoBlocks(paddedMatrix);
-            for i=1:serializedMatrixLength
-                serializedMatrix(i) = obj.encodeBlock(blocks(:,:,i));
-            end
-        end
-
-        function matrix = deserialize(obj, serializedMatrix, matrixSize)
-            serializedMatrixSize = size(serializedMatrix);
-            blocks = false(obj.blockSize(1),obj.blockSize(2),serializedMatrixSize(2));
-            for i=1:serializedMatrixSize(2)
-                blocks(:,:,i) = obj.decodeBlock(serializedMatrix(i));
-            end
-            paddedMatrixSize = ceil(matrixSize./obj.blockSize).*obj.blockSize;
-            matrix = obj.joinMatrixBlocks(blocks, paddedMatrixSize);
-            matrix = matrix(1:matrixSize(1),1:matrixSize(2));
-        end
+%         function serializedMatrix = serialize(obj, matrix)
+%             subBlocksSize = ceil(size(matrix)./(obj.blockSize));
+%             serializedMatrixLength = subBlocksSize(1)*subBlocksSize(2);
+%             serializedMatrix = uint64(zeros(1,serializedMatrixLength));
+% 
+%             blocks = obj.splitMatrixIntoBlocks(matrix);
+%             for i=1:serializedMatrixLength
+%                 serializedMatrix(i) = obj.encodeBlock(blocks(:,:,i));
+%             end
+%         end
+% 
+%         function matrix = deserialize(obj, serializedMatrix, matrixSize)
+%             serializedMatrixSize = size(serializedMatrix);
+%             blocks = false(obj.blockSize(1),obj.blockSize(2),serializedMatrixSize(2));
+%             for i=1:serializedMatrixSize(2)
+%                 blocks(:,:,i) = obj.decodeBlock(serializedMatrix(i));
+%             end
+%             matrix = obj.joinMatrixBlocks(blocks, matrixSize);
+%         end
     end
 end
