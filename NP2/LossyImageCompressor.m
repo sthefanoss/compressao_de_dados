@@ -41,6 +41,7 @@ classdef LossyImageCompressor
         rleTuplesProbabilities
         rleTuplesInformationQuantities
         rleTuplesEntropy
+        transformMethod
     end
 
     methods
@@ -52,6 +53,7 @@ classdef LossyImageCompressor
                 transformMethod char {mustBeMember(transformMethod,{'dct','wht'})} = 'dct'
                 quantizerValueGenerator = @(i,j) 1 + 25*i + 25*j;
             end
+            obj.transformMethod = transformMethod;
             obj.blockSize = [blockSize blockSize];
             if transformMethod == 'dct'
                 obj.transformBlockSize = obj.blockSize;
@@ -192,6 +194,40 @@ classdef LossyImageCompressor
             average = mean(whiteBlocksCount);
             variance = var(whiteBlocksCount);
             sprintf('With average = %.2f, variance = %.2f and std deviation = %.2f.', average, variance, sqrt(variance))
+        end
+
+     function showTask2Table(obj)
+            sprintf('For %dx%d size blocks with %s method:', obj.blockSize(1),obj.blockSize(2),obj.transformMethod)
+            sprintf('Transform matrix')
+            obj.blockTransformer.matrix
+            sprintf('Quantization matrix')
+            obj.blockQuantizer.matrix
+            indexes = 1:length(obj.trainImages);
+            mse = zeros(1, length(obj.trainImages));
+            timeSpent = zeros(1, length(obj.trainImages));
+            for i=indexes
+                tic;
+                blocks = obj.matrixSerializer.splitMatrixIntoBlocks(obj.trainImages{i});
+                detransformedBlock = 0 * blocks;
+                [Tys,Cys] = obj.whiteBlockSeparator.split(blocks);
+                for j=1:size(Cys,3)
+                    Dys = obj.blockTransformer.transform(Cys(:,:,j));
+                    quantizedBlock = obj.blockQuantizer.quantize(Dys);
+                    dequantizedBlock = obj.blockQuantizer.dequantize(quantizedBlock);
+                    restoredCys(:,:,j) = obj.blockTransformer.inverseTransform(dequantizedBlock);
+                end
+                restoredBlocks = obj.whiteBlockSeparator.join(Tys,restoredCys);
+                restoredImage = obj.matrixSerializer.joinMatrixBlocks(restoredBlocks, size(obj.trainImages{i}));
+                timeSpent(i) = toc;
+                mse(i) = quadraticMeanError(restoredImage, obj.trainImages{i});
+            end
+            Index = indexes';
+            TimeSpent = timeSpent';
+            MSE = mse';
+            table(Index, TimeSpent, MSE)
+%             average = mean(whiteBlocksCount);
+%             variance = var(whiteBlocksCount);
+%             sprintf('With average = %.2f, variance = %.2f and std deviation = %.2f.', average, variance, sqrt(variance))
         end
     
         function showBlocksAnalysis(obj)
