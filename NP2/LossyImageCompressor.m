@@ -46,24 +46,24 @@ classdef LossyImageCompressor
     methods
         function obj = LossyImageCompressor(blockSize, trainImages, escapeMethod,transformMethod, quantizerValueGenerator)
             arguments
-                blockSize (1,2)
+                blockSize (1,1)
                 trainImages (1,:) cell
                 escapeMethod char {mustBeMember(escapeMethod,{'without','expectedValue', 'lessFrequent'})} = 'without'
                 transformMethod char {mustBeMember(transformMethod,{'dct','wht'})} = 'dct'
                 quantizerValueGenerator = @(i,j) 1 + 25*i + 25*j;
             end
+            obj.blockSize = [blockSize blockSize];
             if transformMethod == 'dct'
-                obj.transformBlockSize = blockSize;
+                obj.transformBlockSize = obj.blockSize;
             else
-                dummyMatrix = ones(blockSize(1),blockSize(2));
-                obj.transformBlockSize = size(fwht(fwht(dummyMatrix)'));
+                transformSize = 2^ceil(log2(blockSize));
+                obj.transformBlockSize = [transformSize transformSize];
             end
-            obj.blockSize = blockSize;
             obj.trainImages = trainImages;
-            obj.matrixSerializer = MatrixSerializer(blockSize);
+            obj.matrixSerializer = MatrixSerializer(obj.blockSize);
             obj.rleEncoder = RleEncoder();
             obj.eliasGammaEncoder = EliasGammaEncoder();
-            obj.blockTransformer = BlockTransformer(blockSize,transformMethod);
+            obj.blockTransformer = BlockTransformer(obj.blockSize,transformMethod);
             obj.blockQuantizer = BlockQuantizer(obj.transformBlockSize,quantizerValueGenerator);
             obj.blockScanner = BlockScanner(obj.transformBlockSize);
             obj.whiteBlockSeparator = WhiteBlockSeparator();
