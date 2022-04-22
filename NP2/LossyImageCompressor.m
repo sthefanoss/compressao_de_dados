@@ -28,6 +28,7 @@ classdef LossyImageCompressor
         blockScanner BlockScanner
         whiteBlockSeparator WhiteBlockSeparator
         transformBlockSize 
+        blockSize
         trainImages
         huffmanDictionary
         symbolsTotalCount
@@ -57,6 +58,7 @@ classdef LossyImageCompressor
                 dummyMatrix = ones(blockSize(1),blockSize(2));
                 obj.transformBlockSize = size(fwht(fwht(dummyMatrix)'));
             end
+            obj.blockSize = blockSize;
             obj.trainImages = trainImages;
             obj.matrixSerializer = MatrixSerializer(blockSize);
             obj.rleEncoder = RleEncoder();
@@ -90,6 +92,29 @@ classdef LossyImageCompressor
             obj.rleTuplesEntropy = sum(obj.rleTuplesProbabilities.*obj.rleTuplesInformationQuantities);
 
             obj.huffmanDictionary = HuffmanDictionary.make(obj.rleTuplesValues,obj.rleTuplesProbabilities, escapeMethod);
+        end
+
+        function [Tys,Cys] = getTysCysFromImage(obj, image)
+            blocks = obj.matrixSerializer.splitMatrixIntoBlocks(image);
+            [Tys, Cys] = obj.whiteBlockSeparator.split(blocks);
+        end
+
+        function image = getImageFromTysCys(obj, Tys,Cys,imageSize)
+            blocks = obj.whiteBlockSeparator.join(Tys,Cys);
+            image = obj.matrixSerializer.joinMatrixBlocks(blocks,imageSize);
+            image = uint8(image);
+        end
+
+        function writeImageTysCys(obj, image, path)
+            blocks = obj.matrixSerializer.splitMatrixIntoBlocks(image);
+            [Tys, Cys] = obj.whiteBlockSeparator.split(blocks);
+            data = {Tys,Cys,size(image)};
+            save(path,'data');
+        end
+
+        function image = readImageFromTysCys(obj, path)
+            load(path);
+            image = obj.getImageFromTysCys(data{1}, data{2}, data{3});
         end
 
         function [compressedImage, compressionLength, ratio] = compressImage(obj, image)
@@ -143,6 +168,30 @@ classdef LossyImageCompressor
             end
             blocks = obj.whiteBlockSeparator.join(Tys,Cys);
             image = uint8(obj.matrixSerializer.joinMatrixBlocks(blocks,metaData(2:3)));
+        end
+
+        function showTask1Table(obj)
+            sprintf('For %dx%d size blocks:', obj.blockSize(1),obj.blockSize(2))
+            indexes = 1:length(obj.trainImages);
+            blocksCount = zeros(1, length(obj.trainImages));
+            whiteBlocksCount = zeros(1, length(obj.trainImages));
+            whiteBlocksPercent = zeros(1, length(obj.trainImages));
+            whiteBlocksTuplesCount = zeros(1, length(obj.trainImages));
+            for i=indexes
+                blocks = obj.matrixSerializer.splitMatrixIntoBlocks(obj.trainImages{i});
+                [Tys,Cys] = obj.whiteBlockSeparator.split(blocks);
+                blocksCount(i) = length(blocks);
+                whiteBlocksCount(i) = sum(Tys(:,2));
+                whiteBlocksPercent(i) = 100*whiteBlocksCount(i)/blocksCount(i);
+            end
+            Index = indexes';
+            BlocksCount = blocksCount';
+            WhiteBlocksCount = whiteBlocksCount';
+            WhiteBlocksPercent = whiteBlocksPercent';
+            table(Index, BlocksCount, WhiteBlocksCount, WhiteBlocksPercent)
+            average = mean(whiteBlocksCount);
+            variance = var(whiteBlocksCount);
+            sprintf('With average = %.2f, variance = %.2f and std deviation = %.2f.', average, variance, sqrt(variance))
         end
     
         function showBlocksAnalysis(obj)
