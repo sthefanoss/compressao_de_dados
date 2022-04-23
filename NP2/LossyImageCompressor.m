@@ -244,98 +244,58 @@ classdef LossyImageCompressor
             table(Index, TimeSpent, MSE)
      end
 
-     function showTask3Table(obj)
-            sprintf('For %dx%d size blocks with %s method:', obj.blockSize(1),obj.blockSize(2),obj.transformMethod)
-            sprintf('Transform matrix')
-            obj.blockTransformer.matrix
+     function showTask3Table(obj)   
             sprintf('Quantization matrix')
             obj.blockQuantizer.matrix
             indexes = 1:length(obj.trainImages);
             mse = zeros(1, length(obj.trainImages));
-            timeSpent = zeros(1, length(obj.trainImages));
             for i=indexes
-                tic;
                 blocks = obj.matrixSerializer.splitMatrixIntoBlocks(obj.trainImages{i});
                 detransformedBlock = 0 * blocks;
-                [Tys,Cys] = obj.whiteBlockSeparator.split(blocks);
+                [Tys,Cys] = obj.whiteBlockSeparator.split(blocks);    
+                rleTuples = {};
+                quantizedRleTuples = {};
                 for j=1:size(Cys,3)
                     Dys = obj.blockTransformer.transform(Cys(:,:,j));
-                    truncatedDys = floor(Dys);
-                    restoredCys(:,:,j) = obj.blockTransformer.inverseTransform(truncatedDys);
+                    quantizedBlock = obj.blockQuantizer.quantize(Dys);
+                    dequantizedBlock = obj.blockQuantizer.dequantize(quantizedBlock);
+                    restoredCys(:,:,j) = obj.blockTransformer.inverseTransform(dequantizedBlock);
+                    
+                    % original blocks rle tuples
+                    blockScan = obj.blockScanner.scan(Dys);
+                    blockRleTuples = obj.rleEncoder.encode(blockScan);
+                    for k=1:length(blockRleTuples)
+                        rleTuples{length(rleTuples)+1} = blockRleTuples{k};
+                    end
+
+                    % resored blocks rle tuples (from quantization)
+                    blockScan = obj.blockScanner.scan(quantizedBlock);
+                    blockRleTuples = obj.rleEncoder.encode(blockScan);
+                    for k=1:length(blockRleTuples)
+                        quantizedRleTuples{length(quantizedRleTuples)+1} = blockRleTuples{k};
+                    end
                 end
+                rleTuplesCount(i) = length(rleTuples);
+                quantizedRleTuplesCount(i) = length(quantizedRleTuples);
+
+                [rleTuplesValues, rleTuplesProbabilities] = getProbabilities(string(rleTuples),'char',@(X,i) X(i));
+                entropy(i) = -sum(rleTuplesProbabilities.*log2(rleTuplesProbabilities));
+
+                [rleTuplesValues, rleTuplesProbabilities] = getProbabilities(string(quantizedRleTuples),'char',@(X,i) X(i));
+                quantizedEntropy(i) = -sum(rleTuplesProbabilities.*log2(rleTuplesProbabilities));
+
                 restoredBlocks = obj.whiteBlockSeparator.join(Tys,restoredCys);
                 restoredImage = obj.matrixSerializer.joinMatrixBlocks(restoredBlocks, size(obj.trainImages{i}));
-                timeSpent(i) = toc;
                 mse(i) = quadraticMeanError(restoredImage, obj.trainImages{i});
             end
             Index = indexes';
-            TimeSpent = timeSpent';
+            RleCount = rleTuplesCount';
+            QuantizedRleCount = quantizedRleTuplesCount';
+            Entropy = entropy';
+            QuantizedEntropy = quantizedEntropy';
             MSE = mse';
-            table(Index, TimeSpent, MSE)
+            table(Index, RleCount, QuantizedRleCount, Entropy, QuantizedEntropy, MSE)
      end
-    
-        function showBlocksAnalysis(obj)
-            sprintf('Total of %d symbols, %d unique symbols. With entropy H=%f.',obj.symbolsTotalCount, length(obj.symbolsValues),obj.symbolsEntropy)
-           
-            indexes = 1:min(16, length(obj.symbolsValues));
-            figure
-            bar(obj.symbolsProbabilities(indexes))
-            set(gca,'xticklabel', obj.symbolsValues(indexes),'XTick', indexes)
-   
-            Index = indexes';
-            Probability = obj.symbolsProbabilities(indexes)';
-            Symbol = obj.symbolsValues(indexes)';
-            InformationQuantity = obj.symbolsInformationQuantities(indexes)';
-            table(Index, Symbol, Probability, InformationQuantity)
-        end
 
-        function showRleTuplesAnalysis(obj)
-            sprintf('Total of %d rle tuples, %d unique rle tuples. With entropy H=%f.', obj.rleTuplesTotalCount, length(obj.rleTuplesValues),obj.rleTuplesEntropy)
-            indexes = 1:min(16, length(obj.rleTuplesValues));
-            figure
-            bar(obj.rleTuplesProbabilities(indexes))
-            set(gca,'xticklabel', obj.rleTuplesValues(indexes),'XTick', indexes)
-
-            Index = indexes';
-            Probability = obj.rleTuplesProbabilities(indexes)';
-            RleTuple = obj.rleTuplesValues(indexes)';
-            InformationQuantity = obj.rleTuplesInformationQuantities(indexes)';
-            table(Index, RleTuple, Probability, InformationQuantity)
-        end
-
-        function showHuffmanAnalysis(obj)
-            if not(strcmp(obj.huffmanDictionary.escapeMethod,'without'))
-                sprintf('Huffman dictionary with %d escape symbols. Average length of %f.', obj.huffmanDictionary.escapeLength,obj.huffmanDictionary.averageLength)
-            else
-                sprintf('Huffman dictionary without escape symbols. Average length of %f.', obj.huffmanDictionary.averageLength)
-            end
-        end
-
-        function result = runImagesBenchmark(obj, imagePaths)
-            arguments
-                obj
-                imagePaths (1,:) cell = obj.trainImages
-            end
-            indexes = 1:length(imagePaths);
-            for i=indexes
-                image = imread(imagePaths{i});
-                blockSize = obj.matrixSerializer.blockSize;
-                imageSize = ceil(size(image)./blockSize).*blockSize;
-                imageSizeInBits(i) = imageSize(1)*imageSize(2);
-                imageSymbols = obj.matrixSerializer.serialize(image > 150);
-                rleTuples = obj.rleEncoder.encode(imageSymbols);
-                tuplesCount(i) = length(rleTuples);
-                estimatedCompressionLength(i) = tuplesCount(i)*obj.huffmanDictionary.averageLength;
-                [imageCompressed, compressionLength(i)] = obj.compressImage(image);
-                ratio(i) = compressionLength(i)/imageSizeInBits(i);
-            end
-            Index = indexes';
-            ImageSizeInBits = imageSizeInBits';
-            TuplesCount = tuplesCount';
-            EstimatedCompressionLength = estimatedCompressionLength';
-            CompressionLength= compressionLength';
-            Ratio = ratio';
-            result = table(Index, ImageSizeInBits, TuplesCount, EstimatedCompressionLength, CompressionLength, Ratio);
-        end
     end
 end
