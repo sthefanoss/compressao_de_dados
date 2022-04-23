@@ -66,7 +66,7 @@ classdef LossyImageCompressor
             obj.rleEncoder = RleEncoder();
             obj.eliasGammaEncoder = EliasGammaEncoder();
             obj.blockTransformer = BlockTransformer(obj.blockSize,transformMethod);
-            obj.blockQuantizer = BlockQuantizer(obj.transformBlockSize,quantizerValueGenerator);
+            obj.blockQuantizer = BlockQuantizer.fromGenerator(obj.transformBlockSize,quantizerValueGenerator);
             obj.blockScanner = BlockScanner(obj.transformBlockSize);
             obj.whiteBlockSeparator = WhiteBlockSeparator();
           
@@ -132,14 +132,20 @@ classdef LossyImageCompressor
                         rleTuples{length(rleTuples)+1} = blockRleTuples{k};
                     end
                 end
-                tysLenght = size(Tys,1); 
+                tysLenght = size(Tys,1);
+                compressedQuantizationMatrix = obj.eliasGammaEncoder.encodeList(reshape(obj.blockQuantizer.matrix', 1,[]));
+                if obj.transformMethod == 'dct'
+                    transformMethodCode = 1;
+                else
+                    transformMethodCode = 2;
+                end
                 compressedWhiteBlocks = obj.eliasGammaEncoder.encodeList(reshape(Tys',1,[]));
                 compressedRleTuples = obj.huffmanDictionary.encode(rleTuples);
-                compressedImage = [compressedWhiteBlocks compressedRleTuples];
-                compressionLength = length(compressedImage);
-                metaData = [(tysLenght+1) size(image)];
+                compressedImage = [compressedQuantizationMatrix compressedWhiteBlocks compressedRleTuples];
+                metaData = [(tysLenght+1) size(image) size(obj.blockQuantizer.matrix,1) transformMethodCode obj.blockSize];
                 encodedMetaData = obj.eliasGammaEncoder.encodeList(metaData);
                 compressedImage = [encodedMetaData, compressedImage];
+                compressionLength = length(compressedImage);
                 ratio = compressionLength / (8*size(image,1)*size(image,2));
         end
 
@@ -149,7 +155,19 @@ classdef LossyImageCompressor
         end
 
         function image = decompressImage(obj, compressedImage)
-            [metaData, compressedImage] = obj.eliasGammaEncoder.decodeList(compressedImage, 3);
+            [metaData, compressedImage] = obj.eliasGammaEncoder.decodeList(compressedImage, 7);
+            tysLenght = metaData(1) - 1;
+            imageSize = metaData(2:3);
+            blockQuantizedBlockSize = [metaData(4) metaData(4)];
+            blockSize = metaData(6:7);
+            if metaData(5) == 1
+                blockTransformer = BlockTransformer(blockSize, "dct");
+            else
+                blockTransformer = BlockTransformer(blockSize, "wht");
+            end
+            [quantizationMatrix,compressedImage] = obj.eliasGammaEncoder.decodeList(compressedImage, blockQuantizedBlockSize(1)^2);
+            quantizationMatrix =  reshape(quantizationMatrix,blockQuantizedBlockSize(1),[])';
+            blockQuantizer = BlockQuantizer(blockQuantizedBlockSize, quantizationMatrix);
             TysLength = metaData(1)-1;
             if TysLength > 0
                 [Tys, compressedImage] = obj.eliasGammaEncoder.decodeList(compressedImage, 2*TysLength);
@@ -165,8 +183,8 @@ classdef LossyImageCompressor
             Cys = zeros(obj.matrixSerializer.blockSize(1),obj.matrixSerializer.blockSize(2),length(blockScans));
             for i=1:blockScanSize(1)
                 blockScan = obj.blockScanner.build(blockScans(i,:));
-                dequantizedBlock = obj.blockQuantizer.dequantize(blockScan);
-                Cys(:,:,i) = obj.blockTransformer.inverseTransform(dequantizedBlock);
+                dequantizedBlock = blockQuantizer.dequantize(blockScan);
+                Cys(:,:,i) = blockTransformer.inverseTransform(dequantizedBlock);
             end
             blocks = obj.whiteBlockSeparator.join(Tys,Cys);
             image = uint8(obj.matrixSerializer.joinMatrixBlocks(blocks,metaData(2:3)));
@@ -212,9 +230,8 @@ classdef LossyImageCompressor
                 [Tys,Cys] = obj.whiteBlockSeparator.split(blocks);
                 for j=1:size(Cys,3)
                     Dys = obj.blockTransformer.transform(Cys(:,:,j));
-                    quantizedBlock = obj.blockQuantizer.quantize(Dys);
-                    dequantizedBlock = obj.blockQuantizer.dequantize(quantizedBlock);
-                    restoredCys(:,:,j) = obj.blockTransformer.inverseTransform(dequantizedBlock);
+                    truncatedDys = floor(Dys);
+                    restoredCys(:,:,j) = obj.blockTransformer.inverseTransform(truncatedDys);
                 end
                 restoredBlocks = obj.whiteBlockSeparator.join(Tys,restoredCys);
                 restoredImage = obj.matrixSerializer.joinMatrixBlocks(restoredBlocks, size(obj.trainImages{i}));
@@ -225,10 +242,37 @@ classdef LossyImageCompressor
             TimeSpent = timeSpent';
             MSE = mse';
             table(Index, TimeSpent, MSE)
-%             average = mean(whiteBlocksCount);
-%             variance = var(whiteBlocksCount);
-%             sprintf('With average = %.2f, variance = %.2f and std deviation = %.2f.', average, variance, sqrt(variance))
-        end
+     end
+
+     function showTask3Table(obj)
+            sprintf('For %dx%d size blocks with %s method:', obj.blockSize(1),obj.blockSize(2),obj.transformMethod)
+            sprintf('Transform matrix')
+            obj.blockTransformer.matrix
+            sprintf('Quantization matrix')
+            obj.blockQuantizer.matrix
+            indexes = 1:length(obj.trainImages);
+            mse = zeros(1, length(obj.trainImages));
+            timeSpent = zeros(1, length(obj.trainImages));
+            for i=indexes
+                tic;
+                blocks = obj.matrixSerializer.splitMatrixIntoBlocks(obj.trainImages{i});
+                detransformedBlock = 0 * blocks;
+                [Tys,Cys] = obj.whiteBlockSeparator.split(blocks);
+                for j=1:size(Cys,3)
+                    Dys = obj.blockTransformer.transform(Cys(:,:,j));
+                    truncatedDys = floor(Dys);
+                    restoredCys(:,:,j) = obj.blockTransformer.inverseTransform(truncatedDys);
+                end
+                restoredBlocks = obj.whiteBlockSeparator.join(Tys,restoredCys);
+                restoredImage = obj.matrixSerializer.joinMatrixBlocks(restoredBlocks, size(obj.trainImages{i}));
+                timeSpent(i) = toc;
+                mse(i) = quadraticMeanError(restoredImage, obj.trainImages{i});
+            end
+            Index = indexes';
+            TimeSpent = timeSpent';
+            MSE = mse';
+            table(Index, TimeSpent, MSE)
+     end
     
         function showBlocksAnalysis(obj)
             sprintf('Total of %d symbols, %d unique symbols. With entropy H=%f.',obj.symbolsTotalCount, length(obj.symbolsValues),obj.symbolsEntropy)

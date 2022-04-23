@@ -8,18 +8,25 @@ classdef BlockQuantizer
         matrixInv
     end
     
-    methods
-        function obj = BlockQuantizer(blockSize, valueGenerator)
-            obj.blockSize = blockSize;
-            obj.matrix = zeros(blockSize);
-            obj.matrixInv = zeros(blockSize);
+    methods (Static)
+        function obj = fromGenerator(blockSize, valueGenerator)
+            matrix = zeros(blockSize);
+            matrixInv = zeros(blockSize);
             for i=1:blockSize(1)
                 for j=1:blockSize(2)
-                    value = valueGenerator((i-1)/(blockSize(1)-1),(j-1)/(blockSize(2)-1));
-                    obj.matrix(i,j) = value;
-                    obj.matrixInv(i,j) = 1/value;
+                    value = ceil(valueGenerator((i-1)/(blockSize(1)-1),(j-1)/(blockSize(2)-1)));
+                    matrix(i,j) = value;
                 end
             end
+            obj = BlockQuantizer(blockSize,matrix);
+        end
+    end
+
+    methods
+        function obj = BlockQuantizer(blockSize, matrix)
+            obj.blockSize = blockSize;
+            obj.matrix = matrix;
+            obj.matrixInv = 1./matrix;
         end
         
         function quantizedBlock = quantize(obj,block)
